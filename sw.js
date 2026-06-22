@@ -1,4 +1,4 @@
-const CACHE_NAME = 'daily-log-cache-v2';
+const CACHE_NAME = 'daily-log-cache-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -7,7 +7,8 @@ const ASSETS_TO_CACHE = [
   './debug.js',
   './manifest.json',
   './app-icon.png',
-  'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js'
+  './lib/exceljs.min.js',
+  './lib/chart.umd.min.js'
 ];
 
 // Install Event
