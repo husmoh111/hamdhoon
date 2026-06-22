@@ -327,9 +327,11 @@ function handleDateChange() {
         return;
     }
     
-    // Parse YYYY-MM-DD locally to avoid timezone shifts
-    const parts = dateVal.split('-');
-    const date = new Date(parts[0], parts[1] - 1, parts[2]);
+    const date = parseDateSafely(dateVal);
+    if (!date) {
+        logDayInput.value = '';
+        return;
+    }
     const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
     logDayInput.value = dayOfWeek;
 }
@@ -368,7 +370,7 @@ function renderTable() {
 
     // Sort entries by date descending, then start time
     const sortedEntries = [...logEntries].sort((a, b) => {
-        return new Date(b.date + 'T' + b.startTime) - new Date(a.date + 'T' + a.startTime);
+        return getCompareTime(b) - getCompareTime(a);
     });
 
     sortedEntries.forEach((entry) => {
@@ -376,13 +378,7 @@ function renderTable() {
         tr.className = 'new-row';
         
         // Format Date to DD-MMM-YYYY (e.g. 22-Jun-2026) for table display
-        const dateParts = entry.date.split('-');
-        const dateObj = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
-        const formattedDate = dateObj.toLocaleDateString('en-GB', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric'
-        }).replace(/ /g, '-');
+        const formattedDate = formatDateSafely(entry.date);
 
         const statusClass = entry.status ? entry.status.toLowerCase().replace(/ /g, '-') : '';
 
@@ -631,6 +627,79 @@ function escapeHTML(str) {
         .replace(/'/g, '&#039;');
 }
 
+// Robust Date Parsing
+function parseDateSafely(dateStr) {
+    if (!dateStr || typeof dateStr !== 'string') {
+        return null;
+    }
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) {
+        return null;
+    }
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    if (isNaN(year) || isNaN(month) || isNaN(day)) {
+        return null;
+    }
+    const dateObj = new Date(year, month, day);
+    if (isNaN(dateObj.getTime())) {
+        return null;
+    }
+    return dateObj;
+}
+
+// Robust Date Formatting
+function formatDateSafely(dateStr) {
+    const dateObj = parseDateSafely(dateStr);
+    if (!dateObj) {
+        return dateStr || '-';
+    }
+    try {
+        return dateObj.toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        }).replace(/ /g, '-');
+    } catch (e) {
+        return dateStr || '-';
+    }
+}
+
+// Robust Time/Date sorting comparison value generator
+function getCompareTime(entry) {
+    if (!entry) return 0;
+    const dateStr = entry.date || '';
+    const timeStr = entry.startTime || '00:00';
+    
+    let isoStr = '';
+    if (dateStr.includes('-')) {
+        isoStr = dateStr + 'T' + (timeStr.includes(':') ? timeStr : '00:00');
+    }
+    
+    if (isoStr) {
+        const d = new Date(isoStr);
+        if (!isNaN(d.getTime())) {
+            return d.getTime();
+        }
+    }
+    
+    const dateObj = parseDateSafely(dateStr);
+    if (dateObj) {
+        if (timeStr && timeStr.includes(':')) {
+            const timeParts = timeStr.split(':');
+            const hours = parseInt(timeParts[0], 10);
+            const minutes = parseInt(timeParts[1], 10);
+            if (!isNaN(hours) && !isNaN(minutes)) {
+                dateObj.setHours(hours, minutes, 0, 0);
+            }
+        }
+        return dateObj.getTime();
+    }
+    
+    return 0;
+}
+
 // Export to Excel with High Fidelity Formatting via ExcelJS
 async function exportToExcel() {
     if (logEntries.length === 0) {
@@ -713,32 +782,26 @@ async function exportToExcel() {
 
         // Sort entries: earliest date first for exporting sequence
         const exportSortedEntries = [...logEntries].sort((a, b) => {
-            return new Date(a.date + 'T' + a.startTime) - new Date(b.date + 'T' + b.startTime);
+            return getCompareTime(a) - getCompareTime(b);
         });
 
         // 5. Add data rows
         exportSortedEntries.forEach((entry) => {
             // Format date format for Excel cell (e.g. 22-Jun-2026)
-            const parts = entry.date.split('-');
-            const dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
-            const excelFormattedDate = dateObj.toLocaleDateString('en-GB', {
-                day: 'numeric',
-                month: 'short',
-                year: 'numeric'
-            }).replace(/ /g, '-');
+            const excelFormattedDate = formatDateSafely(entry.date);
 
             const rowData = {
                 date: excelFormattedDate,
-                day: entry.day,
-                propertyName: entry.propertyName,
-                dutyType: entry.dutyType,
-                startTime: entry.startTime,
-                breakTime: entry.breakTime,
-                endTime: entry.endTime,
-                workDetail: entry.workDetail,
-                status: entry.status,
-                assignedStaff: Array.isArray(entry.assignedStaff) ? entry.assignedStaff.join(', ') : entry.assignedStaff,
-                assignedSupervisor: Array.isArray(entry.assignedSupervisor) ? entry.assignedSupervisor.join(', ') : entry.assignedSupervisor
+                day: entry.day || '',
+                propertyName: entry.propertyName || '',
+                dutyType: entry.dutyType || '',
+                startTime: entry.startTime || '',
+                breakTime: entry.breakTime || '',
+                endTime: entry.endTime || '',
+                workDetail: entry.workDetail || '',
+                status: entry.status || '',
+                assignedStaff: Array.isArray(entry.assignedStaff) ? entry.assignedStaff.join(', ') : (entry.assignedStaff || ''),
+                assignedSupervisor: Array.isArray(entry.assignedSupervisor) ? entry.assignedSupervisor.join(', ') : (entry.assignedSupervisor || '')
             };
 
             const newRow = worksheet.addRow(rowData);
@@ -782,7 +845,7 @@ async function exportToExcel() {
 
     } catch (error) {
         console.error('Error generating Excel file:', error);
-        alert('An error occurred while generating the Excel file. Please try again.');
+        alert('An error occurred while generating the Excel file: ' + error.message);
     }
 }
 
@@ -1956,9 +2019,13 @@ function renderDashboard() {
     const lastDates = sortedDates.slice(-7); // Take last 7 dates
     const timelineLabels = lastDates.map(d => {
         // Format to DD-MMM (e.g. 22-Jun)
-        const parts = d.split('-');
-        const dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
-        return dateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        const dateObj = parseDateSafely(d);
+        if (!dateObj) return d || '-';
+        try {
+            return dateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        } catch (e) {
+            return d || '-';
+        }
     });
     const timelineData = lastDates.map(d => dateCounts[d]);
 
