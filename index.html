@@ -108,10 +108,24 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="assigned-staff">Assigned Staff <span class="required">*</span></label>
-                            <select id="assigned-staff" required>
-                                <option value="" disabled selected>Select Staff</option>
-                            </select>
+                            <label>Assigned Staff <span class="required">*</span></label>
+                            <div class="custom-multiselect" id="staff-multiselect">
+                                <div class="multiselect-select-box" tabindex="0">
+                                    <span class="placeholder" id="staff-placeholder">Select Staff</span>
+                                    <div class="tags-container" id="staff-tags"></div>
+                                    <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M7 10l5 5 5-5z"/>
+                                    </svg>
+                                </div>
+                                <div class="multiselect-options hidden" id="staff-options-dropdown">
+                                    <div class="multiselect-search-container">
+                                        <input type="text" id="staff-search-input" class="multiselect-search-input" placeholder="Search staff..." autocomplete="off">
+                                    </div>
+                                    <div class="options-list" id="staff-options-list">
+                                        <!-- Checkbox options added dynamically -->
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label for="assigned-supervisor">Assigned Supervisor <span class="required">*</span></label>

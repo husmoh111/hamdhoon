@@ -5,6 +5,7 @@ let staffDirectory = [];
 let supervisorDirectory = [];
 let statusDirectory = [];
 let propertyDirectory = [];
+let selectedStaff = [];
 
 // DOM Elements
 const logForm = document.getElementById('log-form');
@@ -18,8 +19,16 @@ const breakTimeInput = document.getElementById('break-time');
 const endTimeInput = document.getElementById('end-time');
 const workDetailInput = document.getElementById('work-detail');
 const statusSelect = document.getElementById('status');
-const assignedStaffInput = document.getElementById('assigned-staff');
 const assignedSupervisorInput = document.getElementById('assigned-supervisor');
+
+// Custom Multiselect Selectors
+const staffMultiselect = document.getElementById('staff-multiselect');
+const staffSelectBox = staffMultiselect.querySelector('.multiselect-select-box');
+const staffPlaceholder = document.getElementById('staff-placeholder');
+const staffTagsContainer = document.getElementById('staff-tags');
+const staffOptionsDropdown = document.getElementById('staff-options-dropdown');
+const staffSearchInput = document.getElementById('staff-search-input');
+const staffOptionsList = document.getElementById('staff-options-list');
 
 const btnSubmit = document.getElementById('btn-submit');
 const btnCancel = document.getElementById('btn-cancel');
@@ -101,6 +110,35 @@ document.addEventListener('DOMContentLoaded', () => {
     adminAddStaffForm.addEventListener('submit', handleAddStaffSubmit);
     btnImportPreset.addEventListener('click', importPresetStaff);
     btnBulkImportSubmit.addEventListener('click', handleBulkImportSubmit);
+
+    // Custom Multiselect Event Listeners
+    staffSelectBox.addEventListener('click', (e) => {
+        e.stopPropagation();
+        staffMultiselect.classList.toggle('open');
+        staffOptionsDropdown.classList.toggle('hidden');
+    });
+
+    // Close dropdown on click outside
+    document.addEventListener('click', (e) => {
+        if (staffMultiselect && !staffMultiselect.contains(e.target)) {
+            staffMultiselect.classList.remove('open');
+            staffOptionsDropdown.classList.add('hidden');
+        }
+    });
+
+    // Filter staff list options on search input
+    staffSearchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase();
+        const labels = staffOptionsList.querySelectorAll('.option-label');
+        labels.forEach(label => {
+            const name = label.getAttribute('data-name').toLowerCase();
+            if (name.includes(query)) {
+                label.style.display = 'flex';
+            } else {
+                label.style.display = 'none';
+            }
+        });
+    });
 
     // Admin Supervisor Modal Event Listeners
     adminAddSupervisorForm.addEventListener('submit', handleAddSupervisorSubmit);
@@ -236,7 +274,7 @@ function renderTable() {
             <td>${entry.endTime}</td>
             <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHTML(entry.workDetail)}">${escapeHTML(entry.workDetail)}</td>
             <td><span class="status-pill ${statusClass}">${entry.status}</span></td>
-            <td>${escapeHTML(entry.assignedStaff)}</td>
+            <td>${escapeHTML(Array.isArray(entry.assignedStaff) ? entry.assignedStaff.join(', ') : entry.assignedStaff)}</td>
             <td>${escapeHTML(entry.assignedSupervisor)}</td>
             <td class="actions-col">
                 <button class="btn-action-icon edit" onclick="editEntry('${entry.id}')" title="Edit Entry">
@@ -265,6 +303,11 @@ function handleFormSubmit(e) {
         return;
     }
 
+    if (selectedStaff.length === 0) {
+        alert('Please select at least one staff member.');
+        return;
+    }
+
     const entryData = {
         id: editId || 'id_' + Date.now(),
         date: logDateInput.value,
@@ -276,7 +319,7 @@ function handleFormSubmit(e) {
         endTime: endTimeInput.value,
         workDetail: workDetailInput.value.trim(),
         status: statusSelect.value,
-        assignedStaff: assignedStaffInput.value.trim(),
+        assignedStaff: selectedStaff,
         assignedSupervisor: assignedSupervisorInput.value.trim()
     };
 
@@ -311,8 +354,24 @@ window.editEntry = function(id) {
     endTimeInput.value = entry.endTime;
     workDetailInput.value = entry.workDetail;
     statusSelect.value = entry.status;
-    assignedStaffInput.value = entry.assignedStaff;
     assignedSupervisorInput.value = entry.assignedSupervisor;
+
+    // Set selected staff
+    if (Array.isArray(entry.assignedStaff)) {
+        selectedStaff = [...entry.assignedStaff];
+    } else if (entry.assignedStaff) {
+        selectedStaff = entry.assignedStaff.split(',').map(s => s.trim()).filter(Boolean);
+    } else {
+        selectedStaff = [];
+    }
+    
+    // Check checkboxes matching selectedStaff
+    const checkboxes = staffOptionsList.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => {
+        cb.checked = selectedStaff.includes(cb.value);
+    });
+    
+    syncStaffTagsUI();
 
     // UI modifications for edit mode
     btnSubmit.querySelector('span').textContent = 'Update Entry';
@@ -333,6 +392,12 @@ function resetForm() {
     btnSubmit.querySelector('span').textContent = 'Add Entry';
     btnSubmit.querySelector('svg').innerHTML = '<path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>'; // add icon
     btnCancel.classList.add('hidden');
+
+    // Reset custom multiselect
+    selectedStaff = [];
+    syncStaffTagsUI();
+    const checkboxes = staffOptionsList.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = false);
 
     // Reset date to today
     const today = new Date().toISOString().split('T')[0];
@@ -476,7 +541,7 @@ async function exportToExcel() {
                 endTime: entry.endTime,
                 workDetail: entry.workDetail,
                 status: entry.status,
-                assignedStaff: entry.assignedStaff,
+                assignedStaff: Array.isArray(entry.assignedStaff) ? entry.assignedStaff.join(', ') : entry.assignedStaff,
                 assignedSupervisor: entry.assignedSupervisor
             };
 
@@ -674,35 +739,88 @@ function renderAdminStaffList() {
     });
 }
 
-// Update form select dropdown options
+// Update form staff custom multiselect dropdown options
 function updateStaffSelect() {
-    // Preserve current selection if any
-    const currentValue = assignedStaffInput.value;
-    
-    assignedStaffInput.innerHTML = '<option value="" disabled selected>Select Staff</option>';
+    staffOptionsList.innerHTML = '';
     
     if (staffDirectory.length === 0) {
-        const option = document.createElement('option');
-        option.value = '';
-        option.disabled = true;
-        option.textContent = 'No staff available. Add in Admin Menu';
-        assignedStaffInput.appendChild(option);
+        staffOptionsList.innerHTML = `
+            <div style="color: var(--text-muted); padding: 10px; font-size: 0.9rem; text-align: center;">
+                No staff available. Add in Admin Menu.
+            </div>`;
+        selectedStaff = [];
+        syncStaffTagsUI();
         return;
     }
     
-    // Sort alphabetically for easy dropdown browsing
+    // Sort alphabetically for clean display
     const sorted = [...staffDirectory].sort();
     sorted.forEach(name => {
-        const option = document.createElement('option');
-        option.value = name;
-        option.textContent = name;
-        assignedStaffInput.appendChild(option);
+        const label = document.createElement('label');
+        label.className = 'option-label';
+        label.setAttribute('data-name', name);
+        
+        const isChecked = selectedStaff.includes(name);
+        
+        label.innerHTML = `
+            <input type="checkbox" value="${escapeHTML(name)}" ${isChecked ? 'checked' : ''}>
+            <span>${escapeHTML(name)}</span>
+        `;
+        
+        // Listen to checkbox changes
+        const checkbox = label.querySelector('input[type="checkbox"]');
+        checkbox.addEventListener('change', () => {
+            if (checkbox.checked) {
+                if (!selectedStaff.includes(name)) {
+                    selectedStaff.push(name);
+                }
+            } else {
+                selectedStaff = selectedStaff.filter(item => item !== name);
+            }
+            syncStaffTagsUI();
+        });
+        
+        staffOptionsList.appendChild(label);
     });
     
-    // Restore selection if it still exists
-    if (staffDirectory.includes(currentValue)) {
-        assignedStaffInput.value = currentValue;
+    // Cleanup selectedStaff of any deleted items
+    selectedStaff = selectedStaff.filter(name => staffDirectory.includes(name));
+    syncStaffTagsUI();
+}
+
+// Sync selection pills to UI Selectbox
+function syncStaffTagsUI() {
+    staffTagsContainer.innerHTML = '';
+    
+    if (selectedStaff.length === 0) {
+        staffPlaceholder.style.display = 'block';
+    } else {
+        staffPlaceholder.style.display = 'none';
+        selectedStaff.forEach(name => {
+            const tag = document.createElement('span');
+            tag.className = 'tag-pill';
+            tag.innerHTML = `
+                ${escapeHTML(name)}
+                <span class="remove-tag" data-name="${escapeHTML(name)}">&times;</span>
+            `;
+            
+            // Allow removal by clicking cross icon
+            tag.querySelector('.remove-tag').addEventListener('click', (e) => {
+                e.stopPropagation(); // Avoid triggering select box toggle
+                deselectStaffMember(name);
+            });
+            
+            staffTagsContainer.appendChild(tag);
+        });
     }
+}
+
+// Helper to remove tag
+function deselectStaffMember(name) {
+    selectedStaff = selectedStaff.filter(item => item !== name);
+    const checkbox = staffOptionsList.querySelector(`input[type="checkbox"][value="${CSS.escape(name)}"]`);
+    if (checkbox) checkbox.checked = false;
+    syncStaffTagsUI();
 }
 
 // Supervisor Directory Storage Methods
