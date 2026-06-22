@@ -4,6 +4,7 @@ let editId = null;
 let staffDirectory = [];
 let supervisorDirectory = [];
 let statusDirectory = [];
+let propertyDirectory = [];
 
 // DOM Elements
 const logForm = document.getElementById('log-form');
@@ -57,6 +58,15 @@ const btnBulkStatusSubmit = document.getElementById('btn-bulk-status-submit');
 const adminStatusList = document.getElementById('admin-status-list');
 const statusCountBadge = document.getElementById('status-count');
 
+// Admin Panel Property DOM Elements
+const adminAddPropertyForm = document.getElementById('admin-add-property-form');
+const newPropertyNameInput = document.getElementById('new-property-name');
+const btnImportPresetProperties = document.getElementById('btn-import-preset-properties');
+const bulkPropertyInput = document.getElementById('bulk-property-input');
+const btnBulkPropertySubmit = document.getElementById('btn-bulk-property-submit');
+const adminPropertyList = document.getElementById('admin-property-list');
+const propertyCountBadge = document.getElementById('property-count');
+
 // Initialize App
 document.addEventListener('DOMContentLoaded', () => {
     // Load Entries from Local Storage
@@ -70,6 +80,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load Status Directory
     loadStatusDirectory();
+
+    // Load Property Directory
+    loadPropertyDirectory();
 
     // Theme Initializer
     initTheme();
@@ -97,6 +110,11 @@ document.addEventListener('DOMContentLoaded', () => {
     adminAddStatusForm.addEventListener('submit', handleAddStatusSubmit);
     btnImportDefaultStatus.addEventListener('click', importDefaultStatuses);
     btnBulkStatusSubmit.addEventListener('click', handleBulkStatusSubmit);
+
+    // Admin Property Modal Event Listeners
+    adminAddPropertyForm.addEventListener('submit', handleAddPropertySubmit);
+    btnImportPresetProperties.addEventListener('click', importPresetProperties);
+    btnBulkPropertySubmit.addEventListener('click', handleBulkPropertySubmit);
 
     // Modal Tab Click Listeners
     const tabButtons = document.querySelectorAll('.tab-btn');
@@ -525,6 +543,7 @@ function toggleAdminModal(show) {
         renderAdminStaffList();
         renderAdminSupervisorList();
         renderAdminStatusList();
+        renderAdminPropertyList();
     } else {
         adminModal.classList.add('hidden');
     }
@@ -987,5 +1006,169 @@ function updateStatusSelect() {
     // Restore selection if it still exists
     if (statusDirectory.includes(currentValue)) {
         statusSelect.value = currentValue;
+    }
+}
+
+// Property Directory Storage Methods
+function loadPropertyDirectory() {
+    const stored = localStorage.getItem('propertyDirectory');
+    if (stored) {
+        try {
+            propertyDirectory = JSON.parse(stored);
+        } catch (e) {
+            propertyDirectory = [];
+        }
+    } else {
+        propertyDirectory = [];
+    }
+    
+    // Pre-populate defaults if directory is empty
+    if (propertyDirectory.length === 0) {
+        propertyDirectory = ["HDC Building", "Commercial Complex A", "Warehouse Zone 1", "Office Tower", "Industrial Park"];
+        localStorage.setItem('propertyDirectory', JSON.stringify(propertyDirectory));
+    }
+    
+    updatePropertySelect();
+}
+
+function savePropertyDirectory() {
+    localStorage.setItem('propertyDirectory', JSON.stringify(propertyDirectory));
+    updatePropertySelect();
+    renderAdminPropertyList();
+}
+
+// Add property via inline form
+function handleAddPropertySubmit(e) {
+    e.preventDefault();
+    const name = newPropertyNameInput.value.trim();
+    if (!name) return;
+    
+    if (propertyDirectory.some(existingName => existingName.toLowerCase() === name.toLowerCase())) {
+        alert('This property already exists in the directory.');
+        return;
+    }
+    
+    propertyDirectory.push(name);
+    savePropertyDirectory();
+    newPropertyNameInput.value = '';
+}
+
+// Import preset properties
+function importPresetProperties() {
+    const presets = ["HDC Building", "Commercial Complex A", "Warehouse Zone 1", "Office Tower", "Industrial Park"];
+    let countAdded = 0;
+    
+    presets.forEach(prop => {
+        if (!propertyDirectory.some(existingName => existingName.toLowerCase() === prop.toLowerCase())) {
+            propertyDirectory.push(prop);
+            countAdded++;
+        }
+    });
+    
+    if (countAdded > 0) {
+        savePropertyDirectory();
+        alert(`Successfully imported ${countAdded} default properties.`);
+    } else {
+        alert('All default properties are already present.');
+    }
+}
+
+// Bulk Import properties textarea
+function handleBulkPropertySubmit() {
+    const text = bulkPropertyInput.value;
+    if (!text.trim()) {
+        alert('Please enter or paste at least one property name.');
+        return;
+    }
+    
+    const names = text.split('\n');
+    let countAdded = 0;
+    
+    names.forEach(name => {
+        const trimmed = name.trim();
+        if (trimmed && !propertyDirectory.some(existingName => existingName.toLowerCase() === trimmed.toLowerCase())) {
+            propertyDirectory.push(trimmed);
+            countAdded++;
+        }
+    });
+    
+    if (countAdded > 0) {
+        savePropertyDirectory();
+        bulkPropertyInput.value = '';
+        alert(`Successfully imported ${countAdded} properties.`);
+    } else {
+        alert('No new properties were added (duplicates skipped).');
+    }
+}
+
+// Delete property
+window.deleteProperty = function(originalIndex) {
+    const nameToDelete = propertyDirectory[originalIndex];
+    if (confirm(`Remove "${nameToDelete}" from the property list? Existing entries with this property will remain.`)) {
+        propertyDirectory.splice(originalIndex, 1);
+        savePropertyDirectory();
+    }
+};
+
+// Render property list inside modal
+function renderAdminPropertyList() {
+    adminPropertyList.innerHTML = '';
+    propertyCountBadge.textContent = `${propertyDirectory.length} ${propertyDirectory.length === 1 ? 'property' : 'properties'}`;
+
+    if (propertyDirectory.length === 0) {
+        adminPropertyList.innerHTML = `
+            <li style="color: var(--text-muted); justify-content: center; padding: 1.5rem; text-align: center;">
+                List is empty. Add or import properties above.
+            </li>`;
+        return;
+    }
+
+    // Map names to their indexes first, then sort alphabetically
+    const sorted = propertyDirectory
+        .map((name, index) => ({ name, index }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+    sorted.forEach(item => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+            <span>${escapeHTML(item.name)}</span>
+            <button class="btn-action-icon delete" onclick="deleteProperty(${item.index})" title="Delete Property">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                </svg>
+            </button>
+        `;
+        adminPropertyList.appendChild(li);
+    });
+}
+
+// Update form property select dropdown options
+function updatePropertySelect() {
+    // Preserve current selection if any
+    const currentValue = propertyNameInput.value;
+    
+    propertyNameInput.innerHTML = '<option value="" disabled selected>Select Property</option>';
+    
+    if (propertyDirectory.length === 0) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.disabled = true;
+        option.textContent = 'No properties available. Add in Admin Menu';
+        propertyNameInput.appendChild(option);
+        return;
+    }
+    
+    // Sort alphabetically for easy dropdown browsing
+    const sorted = [...propertyDirectory].sort();
+    sorted.forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        propertyNameInput.appendChild(option);
+    });
+    
+    // Restore selection if it still exists
+    if (propertyDirectory.includes(currentValue)) {
+        propertyNameInput.value = currentValue;
     }
 }

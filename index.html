@@ -66,17 +66,11 @@
                             <input type="text" id="log-day" readonly placeholder="Auto-calculated" tabindex="-1">
                         </div>
 
-                        <!-- Property Name -->
                         <div class="form-group">
                             <label for="property-name">Property Name <span class="required">*</span></label>
-                            <input type="text" id="property-name" placeholder="Enter property name" list="properties-list" required>
-                            <datalist id="properties-list">
-                                <option value="HDC Building"></option>
-                                <option value="Commercial Complex A"></option>
-                                <option value="Warehouse Zone 1"></option>
-                                <option value="Office Tower"></option>
-                                <option value="Industrial Park"></option>
-                            </datalist>
+                            <select id="property-name" required>
+                                <option value="" disabled selected>Select Property</option>
+                            </select>
                         </div>
 
                         <!-- Duty Type -->
@@ -214,6 +208,7 @@
                 <button class="tab-btn active" data-tab="tab-staff">Staff Directory</button>
                 <button class="tab-btn" data-tab="tab-supervisor">Supervisor Directory</button>
                 <button class="tab-btn" data-tab="tab-status">Status Directory</button>
+                <button class="tab-btn" data-tab="tab-property">Property Directory</button>
             </div>
             
             <div class="modal-body">
@@ -326,6 +321,46 @@
                         </div>
                         <div class="staff-list-container">
                             <ul id="admin-status-list" class="staff-list">
+                                <!-- Populated dynamically -->
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Property Tab -->
+                <div id="tab-property" class="tab-content hidden">
+                    <!-- Add Single Property Form -->
+                    <div class="admin-section">
+                        <h3>Add New Property</h3>
+                        <form id="admin-add-property-form" class="admin-inline-form">
+                            <input type="text" id="new-property-name" placeholder="Enter property name (e.g. office tower)" required>
+                            <button type="submit" class="btn btn-primary">Add Property</button>
+                        </form>
+                    </div>
+
+                    <!-- Bulk Property Actions -->
+                    <div class="admin-section">
+                        <h3>Bulk Operations</h3>
+                        <div style="margin-bottom: 1rem;">
+                            <button id="btn-import-preset-properties" class="btn btn-success" type="button">
+                                Import Default Properties
+                            </button>
+                        </div>
+                        <div class="bulk-import-container">
+                            <label for="bulk-property-input">Or paste property names below (one per line):</label>
+                            <textarea id="bulk-property-input" rows="4" placeholder="HDC Building&#10;Commercial Complex A"></textarea>
+                            <button id="btn-bulk-property-submit" class="btn btn-secondary" type="button">Bulk Import Properties</button>
+                        </div>
+                    </div>
+
+                    <!-- Property Directory List -->
+                    <div class="admin-section">
+                        <div class="section-title-bar">
+                            <h3>Current Properties</h3>
+                            <span class="badge" id="property-count">0 properties</span>
+                        </div>
+                        <div class="staff-list-container">
+                            <ul id="admin-property-list" class="staff-list">
                                 <!-- Populated dynamically -->
                             </ul>
                         </div>
