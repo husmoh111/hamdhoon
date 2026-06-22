@@ -120,6 +120,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize Authentication
     initAuth();
 
+    // Initialize iOS PWA Install Prompt
+    initIOSInstallPrompt();
+
     // Load Entries from Local Storage
     loadEntries();
     
@@ -1735,4 +1738,55 @@ function renderAdminUserList() {
         `;
         adminUserList.appendChild(li);
     });
+}
+
+// iOS PWA Install Prompt Tooltip initializer
+function initIOSInstallPrompt() {
+    // Detect iOS
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    // Detect standalone mode (already installed/running as PWA)
+    const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+    // Check if dismissed previously
+    const isDismissed = localStorage.getItem('iosInstallPromptDismissed') === 'true';
+
+    // If it's iOS, not running in standalone, and not dismissed, show the prompt
+    if (isIOS && !isStandalone && !isDismissed) {
+        // Create element
+        const promptDiv = document.createElement('div');
+        promptDiv.id = 'ios-install-prompt';
+        promptDiv.className = 'ios-install-prompt';
+        
+        promptDiv.innerHTML = `
+            <div class="prompt-header">
+                <span class="prompt-title">Install App on iOS</span>
+                <button id="close-ios-prompt" class="close-prompt" aria-label="Close prompt">&times;</button>
+            </div>
+            <p class="prompt-body" style="margin: 0; font-size: 0.875rem;">
+                Tap the Share icon
+                <svg class="ios-share-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 18px; height: 18px; color: var(--primary-color); vertical-align: middle; margin: 0 4px;">
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+                    <polyline points="16 6 12 2 8 6"></polyline>
+                    <line x1="12" y1="2" x2="12" y2="15"></line>
+                </svg>
+                at the bottom of Safari, and select <strong>Add to Home Screen</strong>.
+            </p>
+        `;
+        
+        document.body.appendChild(promptDiv);
+        
+        // Trigger reflow and show with slide up transition
+        setTimeout(() => {
+            promptDiv.classList.add('show');
+        }, 1500); // Wait 1.5 seconds after page loads to avoid cluttering immediately
+
+        // Dismiss listener
+        document.getElementById('close-ios-prompt').addEventListener('click', () => {
+            promptDiv.classList.remove('show');
+            localStorage.setItem('iosInstallPromptDismissed', 'true');
+            // Remove from DOM after transition
+            setTimeout(() => {
+                promptDiv.remove();
+            }, 400);
+        });
+    }
 }
