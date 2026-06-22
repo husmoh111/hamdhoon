@@ -10,8 +10,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- CSS Stylesheet -->
     <link rel="stylesheet" href="styles.css">
-    <!-- ExcelJS CDN -->
+    <!-- ExcelJS & ChartJS CDNs -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js" integrity="sha512-dlWQ+HUX4IK9wWjaQ7f3nJpX8vFm4fR6puxfM317AdbWMMmH4ZcZzIolmsaT2Jj6N915F79kGphY4QoGkFpx3w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     
     <!-- PWA Configurations -->
     <meta name="theme-color" content="#10b981">
@@ -37,6 +38,12 @@
                 </div>
             </div>
             <div class="header-actions">
+                <!-- View Switcher -->
+                <div class="view-switcher" id="view-switcher">
+                    <button class="switcher-btn active" data-view="logs">Logs Tracker</button>
+                    <button class="switcher-btn" data-view="dashboard">Dashboard</button>
+                </div>
+                
                 <div id="user-badge" class="user-badge hidden">
                     <span id="user-name-display"></span>
                     <span id="user-role-display" class="badge"></span>
@@ -64,8 +71,9 @@
         </header>
 
         <main class="app-content">
-            <!-- Form Card -->
-            <section class="card form-card">
+            <div id="logs-view-section">
+                <!-- Form Card -->
+                <section class="card form-card">
                 <div class="card-header">
                     <h2>Log Entry Form</h2>
                     <p>Enter duty and activity details below</p>
@@ -235,6 +243,94 @@
                     </table>
                 </div>
             </section>
+            </div> <!-- /#logs-view-section -->
+
+            <!-- Dashboard View Section -->
+            <div id="dashboard-view-section" class="hidden">
+                <!-- KPI Metric Grid -->
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-icon blue">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2zm0-4H7V7h10v2zm0 8H7v-2h10v2z"/>
+                            </svg>
+                        </div>
+                        <div class="kpi-details">
+                            <span class="kpi-value" id="kpi-total-logs">0</span>
+                            <span class="kpi-title">Total Logs</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon green">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+                            </svg>
+                        </div>
+                        <div class="kpi-details">
+                            <span class="kpi-value" id="kpi-total-hours">0h</span>
+                            <span class="kpi-title">Hours Logged</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon orange">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                            </svg>
+                        </div>
+                        <div class="kpi-details">
+                            <span class="kpi-value" id="kpi-total-properties">0</span>
+                            <span class="kpi-title">Properties Tracked</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon red">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                            </svg>
+                        </div>
+                        <div class="kpi-details">
+                            <span class="kpi-value" id="kpi-pending-logs">0</span>
+                            <span class="kpi-title">Pending Duties</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Layout Grid -->
+                <div class="charts-layout-grid">
+                    <!-- Status Donut Chart Card -->
+                    <div class="card chart-card">
+                        <div class="card-header">
+                            <h3>Duty Status Distribution</h3>
+                            <p>Overview of shift completion statuses</p>
+                        </div>
+                        <div class="chart-container" style="position: relative; height: 300px; width: 100%;">
+                            <canvas id="chart-status-distribution"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Property Frequency Chart Card -->
+                    <div class="card chart-card">
+                        <div class="card-header">
+                            <h3>Logs by Property</h3>
+                            <p>Activity frequency across tracked locations</p>
+                        </div>
+                        <div class="chart-container" style="position: relative; height: 300px; width: 100%;">
+                            <canvas id="chart-property-distribution"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Timeline Chart Card (Full Width) -->
+                <div class="card chart-card full-width" style="margin-top: 2rem;">
+                    <div class="card-header">
+                        <h3>Duty Trend Timeline</h3>
+                        <p>Number of logged duties over active timeline dates</p>
+                    </div>
+                    <div class="chart-container" style="position: relative; height: 320px; width: 100%;">
+                        <canvas id="chart-timeline-trend"></canvas>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 

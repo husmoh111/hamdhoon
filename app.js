@@ -40,6 +40,23 @@ const supervisorOptionsDropdown = document.getElementById('supervisor-options-dr
 const supervisorSearchInput = document.getElementById('supervisor-search-input');
 const supervisorOptionsList = document.getElementById('supervisor-options-list');
 
+// Dashboard View Elements
+const logsViewSection = document.getElementById('logs-view-section');
+const dashboardViewSection = document.getElementById('dashboard-view-section');
+const viewSwitcher = document.getElementById('view-switcher');
+const switcherButtons = viewSwitcher.querySelectorAll('.switcher-btn');
+
+// KPI Elements
+const kpiTotalLogs = document.getElementById('kpi-total-logs');
+const kpiTotalHours = document.getElementById('kpi-total-hours');
+const kpiTotalProperties = document.getElementById('kpi-total-properties');
+const kpiPendingLogs = document.getElementById('kpi-pending-logs');
+
+// Charts variables
+let chartStatus = null;
+let chartProperty = null;
+let chartTimeline = null;
+
 // Login and Session DOM Elements
 const loginOverlay = document.getElementById('login-overlay');
 const loginFormElement = document.getElementById('login-form-element');
@@ -152,6 +169,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // Login and Logout Event Listeners
     loginFormElement.addEventListener('submit', handleLoginSubmit);
     btnLogout.addEventListener('click', handleLogoutClick);
+
+    // View Switcher Event Listeners
+    switcherButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            switcherButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            const targetView = btn.getAttribute('data-view');
+            if (targetView === 'dashboard') {
+                logsViewSection.classList.add('hidden');
+                dashboardViewSection.classList.remove('hidden');
+                renderDashboard();
+            } else {
+                logsViewSection.classList.remove('hidden');
+                dashboardViewSection.classList.add('hidden');
+            }
+        });
+    });
 
     // Admin Modal Event Listeners
     btnAdminOpen.addEventListener('click', () => toggleAdminModal(true));
@@ -277,6 +312,11 @@ function toggleTheme() {
     const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', newTheme);
     localStorage.setItem('theme', newTheme);
+
+    // Redraw charts if dashboard is visible
+    if (dashboardViewSection && !dashboardViewSection.classList.contains('hidden')) {
+        renderDashboard();
+    }
 }
 
 // Calculate Day of Week from Date
@@ -1789,4 +1829,252 @@ function initIOSInstallPrompt() {
             }, 400);
         });
     }
+}
+
+// Parse time string 'HH:MM' into minutes
+function parseTimeToMinutes(t) {
+    if (!t) return 0;
+    const parts = t.split(':');
+    if (parts.length < 2) return 0;
+    return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+}
+
+// Calculate shift hours dynamically from an entry
+function calculateShiftHours(entry) {
+    if (!entry.startTime || !entry.endTime) return 0;
+    
+    const startMin = parseTimeToMinutes(entry.startTime);
+    let endMin = parseTimeToMinutes(entry.endTime);
+    
+    // Crosses midnight
+    if (endMin < startMin) {
+        endMin += 24 * 60;
+    }
+    
+    let durationMin = endMin - startMin;
+    
+    // Parse break minutes
+    let breakMin = 0;
+    const breakVal = entry.breakTime ? entry.breakTime.trim() : '';
+    if (breakVal && breakVal !== '-') {
+        if (breakVal.includes(':')) {
+            breakMin = parseTimeToMinutes(breakVal);
+        } else {
+            const num = parseFloat(breakVal);
+            if (!isNaN(num)) {
+                if (breakVal.toLowerCase().includes('min')) {
+                    breakMin = num;
+                } else {
+                    breakMin = num * 60; // hours to minutes
+                }
+            }
+        }
+    }
+    
+    const workedMin = Math.max(0, durationMin - breakMin);
+    return parseFloat((workedMin / 60).toFixed(1));
+}
+
+// Render PWA Dashboard Metrics and Visual Charts
+function renderDashboard() {
+    if (logEntries.length === 0) {
+        // Reset metrics
+        kpiTotalLogs.textContent = '0';
+        kpiTotalHours.textContent = '0h';
+        kpiTotalProperties.textContent = '0';
+        kpiPendingLogs.textContent = '0';
+        
+        // Destroy existing chart instances if any
+        if (chartStatus) { chartStatus.destroy(); chartStatus = null; }
+        if (chartProperty) { chartProperty.destroy(); chartProperty = null; }
+        if (chartTimeline) { chartTimeline.destroy(); chartTimeline = null; }
+        return;
+    }
+
+    // 1. Calculate KPI Metrics
+    const totalLogs = logEntries.length;
+    
+    let totalHours = 0;
+    const propertySet = new Set();
+    let pendingCount = 0;
+    
+    logEntries.forEach(entry => {
+        totalHours += calculateShiftHours(entry);
+        if (entry.propertyName) {
+            propertySet.add(entry.propertyName);
+        }
+        if (entry.status === 'Pending' || entry.status === 'In Progress') {
+            pendingCount++;
+        }
+    });
+
+    kpiTotalLogs.textContent = totalLogs;
+    kpiTotalHours.textContent = totalHours.toFixed(1) + 'h';
+    kpiTotalProperties.textContent = propertySet.size;
+    kpiPendingLogs.textContent = pendingCount;
+
+    // 2. Set colors based on active theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const textColor = isDark ? '#cbd5e1' : '#334155';
+    const gridColor = isDark ? '#334155' : '#e2e8f0';
+    const primaryColor = '#10b981';
+
+    // 3. Compile Data for Charts
+    
+    // Status Distribution
+    const statusCounts = {};
+    logEntries.forEach(entry => {
+        const s = entry.status || 'Pending';
+        statusCounts[s] = (statusCounts[s] || 0) + 1;
+    });
+    const statusLabels = Object.keys(statusCounts);
+    const statusData = Object.values(statusCounts);
+    
+    // Properties Distribution
+    const propertyCounts = {};
+    logEntries.forEach(entry => {
+        const p = entry.propertyName || 'Unknown';
+        propertyCounts[p] = (propertyCounts[p] || 0) + 1;
+    });
+    // Sort descending by count
+    const sortedProperties = Object.keys(propertyCounts)
+        .map(key => ({ name: key, count: propertyCounts[key] }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5); // Take top 5
+    const propertyLabels = sortedProperties.map(p => p.name);
+    const propertyData = sortedProperties.map(p => p.count);
+
+    // Timeline Trend (Last 7 active dates)
+    const dateCounts = {};
+    logEntries.forEach(entry => {
+        if (entry.date) {
+            dateCounts[entry.date] = (dateCounts[entry.date] || 0) + 1;
+        }
+    });
+    // Sort dates ascending
+    const sortedDates = Object.keys(dateCounts).sort();
+    const lastDates = sortedDates.slice(-7); // Take last 7 dates
+    const timelineLabels = lastDates.map(d => {
+        // Format to DD-MMM (e.g. 22-Jun)
+        const parts = d.split('-');
+        const dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+        return dateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    });
+    const timelineData = lastDates.map(d => dateCounts[d]);
+
+    // 4. Initialize or update Chart.js instances
+    
+    // Status Donut Chart
+    if (chartStatus) {
+        chartStatus.destroy();
+    }
+    const ctxStatus = document.getElementById('chart-status-distribution').getContext('2d');
+    chartStatus = new Chart(ctxStatus, {
+        type: 'doughnut',
+        data: {
+            labels: statusLabels,
+            datasets: [{
+                data: statusData,
+                backgroundColor: [
+                    '#ef4444', // Pending (red)
+                    '#f97316', // In Progress (orange)
+                    '#10b981', // Completed (green)
+                    '#3b82f6', // Other statuses
+                    '#8b5cf6',
+                    '#ec4899'
+                ],
+                borderWidth: isDark ? 2 : 1,
+                borderColor: isDark ? '#1e293b' : '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: textColor,
+                        font: { family: 'Outfit', weight: '500' }
+                    }
+                }
+            }
+        }
+    });
+
+    // Property Horizontal Bar Chart
+    if (chartProperty) {
+        chartProperty.destroy();
+    }
+    const ctxProperty = document.getElementById('chart-property-distribution').getContext('2d');
+    chartProperty = new Chart(ctxProperty, {
+        type: 'bar',
+        data: {
+            labels: propertyLabels,
+            datasets: [{
+                label: 'Duties Logged',
+                data: propertyData,
+                backgroundColor: '#3b82f6',
+                borderRadius: 4
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: {
+                    grid: { color: gridColor },
+                    ticks: { color: textColor, precision: 0 }
+                },
+                y: {
+                    grid: { display: false },
+                    ticks: { color: textColor }
+                }
+            }
+        }
+    });
+
+    // Timeline Line Chart
+    if (chartTimeline) {
+        chartTimeline.destroy();
+    }
+    const ctxTimeline = document.getElementById('chart-timeline-trend').getContext('2d');
+    chartTimeline = new Chart(ctxTimeline, {
+        type: 'line',
+        data: {
+            labels: timelineLabels,
+            datasets: [{
+                label: 'Duties per Day',
+                data: timelineData,
+                borderColor: primaryColor,
+                backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.08)',
+                fill: true,
+                tension: 0.3,
+                borderWidth: 3,
+                pointBackgroundColor: primaryColor,
+                pointHoverRadius: 7
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: textColor }
+                },
+                y: {
+                    grid: { color: gridColor },
+                    ticks: { color: textColor, precision: 0 }
+                }
+            }
+        }
+    });
 }
