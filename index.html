@@ -128,10 +128,24 @@
                             </div>
                         </div>
                         <div class="form-group">
-                            <label for="assigned-supervisor">Assigned Supervisor <span class="required">*</span></label>
-                            <select id="assigned-supervisor" required>
-                                <option value="" disabled selected>Select Supervisor</option>
-                            </select>
+                            <label>Assigned Supervisor <span class="required">*</span></label>
+                            <div class="custom-multiselect" id="supervisor-multiselect">
+                                <div class="multiselect-select-box" tabindex="0">
+                                    <span class="placeholder" id="supervisor-placeholder">Select Supervisor</span>
+                                    <div class="tags-container" id="supervisor-tags"></div>
+                                    <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M7 10l5 5 5-5z"/>
+                                    </svg>
+                                </div>
+                                <div class="multiselect-options hidden" id="supervisor-options-dropdown">
+                                    <div class="multiselect-search-container">
+                                        <input type="text" id="supervisor-search-input" class="multiselect-search-input" placeholder="Search supervisors..." autocomplete="off">
+                                    </div>
+                                    <div class="options-list" id="supervisor-options-list">
+                                        <!-- Checkbox options added dynamically -->
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 

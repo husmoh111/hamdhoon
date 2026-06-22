@@ -6,6 +6,7 @@ let supervisorDirectory = [];
 let statusDirectory = [];
 let propertyDirectory = [];
 let selectedStaff = [];
+let selectedSupervisors = [];
 
 // DOM Elements
 const logForm = document.getElementById('log-form');
@@ -19,7 +20,6 @@ const breakTimeInput = document.getElementById('break-time');
 const endTimeInput = document.getElementById('end-time');
 const workDetailInput = document.getElementById('work-detail');
 const statusSelect = document.getElementById('status');
-const assignedSupervisorInput = document.getElementById('assigned-supervisor');
 
 // Custom Multiselect Selectors
 const staffMultiselect = document.getElementById('staff-multiselect');
@@ -29,6 +29,14 @@ const staffTagsContainer = document.getElementById('staff-tags');
 const staffOptionsDropdown = document.getElementById('staff-options-dropdown');
 const staffSearchInput = document.getElementById('staff-search-input');
 const staffOptionsList = document.getElementById('staff-options-list');
+
+const supervisorMultiselect = document.getElementById('supervisor-multiselect');
+const supervisorSelectBox = supervisorMultiselect.querySelector('.multiselect-select-box');
+const supervisorPlaceholder = document.getElementById('supervisor-placeholder');
+const supervisorTagsContainer = document.getElementById('supervisor-tags');
+const supervisorOptionsDropdown = document.getElementById('supervisor-options-dropdown');
+const supervisorSearchInput = document.getElementById('supervisor-search-input');
+const supervisorOptionsList = document.getElementById('supervisor-options-list');
 
 const btnSubmit = document.getElementById('btn-submit');
 const btnCancel = document.getElementById('btn-cancel');
@@ -111,11 +119,25 @@ document.addEventListener('DOMContentLoaded', () => {
     btnImportPreset.addEventListener('click', importPresetStaff);
     btnBulkImportSubmit.addEventListener('click', handleBulkImportSubmit);
 
-    // Custom Multiselect Event Listeners
+    // Custom Multiselect Event Listeners (Staff & Supervisor)
     staffSelectBox.addEventListener('click', (e) => {
         e.stopPropagation();
         staffMultiselect.classList.toggle('open');
         staffOptionsDropdown.classList.toggle('hidden');
+        
+        // Close supervisor dropdown if open
+        supervisorMultiselect.classList.remove('open');
+        supervisorOptionsDropdown.classList.add('hidden');
+    });
+
+    supervisorSelectBox.addEventListener('click', (e) => {
+        e.stopPropagation();
+        supervisorMultiselect.classList.toggle('open');
+        supervisorOptionsDropdown.classList.toggle('hidden');
+        
+        // Close staff dropdown if open
+        staffMultiselect.classList.remove('open');
+        staffOptionsDropdown.classList.add('hidden');
     });
 
     // Close dropdown on click outside
@@ -124,12 +146,30 @@ document.addEventListener('DOMContentLoaded', () => {
             staffMultiselect.classList.remove('open');
             staffOptionsDropdown.classList.add('hidden');
         }
+        if (supervisorMultiselect && !supervisorMultiselect.contains(e.target)) {
+            supervisorMultiselect.classList.remove('open');
+            supervisorOptionsDropdown.classList.add('hidden');
+        }
     });
 
     // Filter staff list options on search input
     staffSearchInput.addEventListener('input', (e) => {
         const query = e.target.value.toLowerCase();
         const labels = staffOptionsList.querySelectorAll('.option-label');
+        labels.forEach(label => {
+            const name = label.getAttribute('data-name').toLowerCase();
+            if (name.includes(query)) {
+                label.style.display = 'flex';
+            } else {
+                label.style.display = 'none';
+            }
+        });
+    });
+
+    // Filter supervisor list options on search input
+    supervisorSearchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase();
+        const labels = supervisorOptionsList.querySelectorAll('.option-label');
         labels.forEach(label => {
             const name = label.getAttribute('data-name').toLowerCase();
             if (name.includes(query)) {
@@ -275,7 +315,7 @@ function renderTable() {
             <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHTML(entry.workDetail)}">${escapeHTML(entry.workDetail)}</td>
             <td><span class="status-pill ${statusClass}">${entry.status}</span></td>
             <td>${escapeHTML(Array.isArray(entry.assignedStaff) ? entry.assignedStaff.join(', ') : entry.assignedStaff)}</td>
-            <td>${escapeHTML(entry.assignedSupervisor)}</td>
+            <td>${escapeHTML(Array.isArray(entry.assignedSupervisor) ? entry.assignedSupervisor.join(', ') : entry.assignedSupervisor)}</td>
             <td class="actions-col">
                 <button class="btn-action-icon edit" onclick="editEntry('${entry.id}')" title="Edit Entry">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
@@ -308,6 +348,11 @@ function handleFormSubmit(e) {
         return;
     }
 
+    if (selectedSupervisors.length === 0) {
+        alert('Please select at least one supervisor.');
+        return;
+    }
+
     const entryData = {
         id: editId || 'id_' + Date.now(),
         date: logDateInput.value,
@@ -320,7 +365,7 @@ function handleFormSubmit(e) {
         workDetail: workDetailInput.value.trim(),
         status: statusSelect.value,
         assignedStaff: selectedStaff,
-        assignedSupervisor: assignedSupervisorInput.value.trim()
+        assignedSupervisor: selectedSupervisors
     };
 
     if (editId) {
@@ -354,7 +399,6 @@ window.editEntry = function(id) {
     endTimeInput.value = entry.endTime;
     workDetailInput.value = entry.workDetail;
     statusSelect.value = entry.status;
-    assignedSupervisorInput.value = entry.assignedSupervisor;
 
     // Set selected staff
     if (Array.isArray(entry.assignedStaff)) {
@@ -372,6 +416,23 @@ window.editEntry = function(id) {
     });
     
     syncStaffTagsUI();
+
+    // Set selected supervisors
+    if (Array.isArray(entry.assignedSupervisor)) {
+        selectedSupervisors = [...entry.assignedSupervisor];
+    } else if (entry.assignedSupervisor) {
+        selectedSupervisors = entry.assignedSupervisor.split(',').map(s => s.trim()).filter(Boolean);
+    } else {
+        selectedSupervisors = [];
+    }
+
+    // Check checkboxes matching selectedSupervisors
+    const supervisorCheckboxes = supervisorOptionsList.querySelectorAll('input[type="checkbox"]');
+    supervisorCheckboxes.forEach(cb => {
+        cb.checked = selectedSupervisors.includes(cb.value);
+    });
+
+    syncSupervisorTagsUI();
 
     // UI modifications for edit mode
     btnSubmit.querySelector('span').textContent = 'Update Entry';
@@ -398,6 +459,12 @@ function resetForm() {
     syncStaffTagsUI();
     const checkboxes = staffOptionsList.querySelectorAll('input[type="checkbox"]');
     checkboxes.forEach(cb => cb.checked = false);
+
+    // Reset supervisor custom multiselect
+    selectedSupervisors = [];
+    syncSupervisorTagsUI();
+    const supervisorCheckboxes = supervisorOptionsList.querySelectorAll('input[type="checkbox"]');
+    supervisorCheckboxes.forEach(cb => cb.checked = false);
 
     // Reset date to today
     const today = new Date().toISOString().split('T')[0];
@@ -542,7 +609,7 @@ async function exportToExcel() {
                 workDetail: entry.workDetail,
                 status: entry.status,
                 assignedStaff: Array.isArray(entry.assignedStaff) ? entry.assignedStaff.join(', ') : entry.assignedStaff,
-                assignedSupervisor: entry.assignedSupervisor
+                assignedSupervisor: Array.isArray(entry.assignedSupervisor) ? entry.assignedSupervisor.join(', ') : entry.assignedSupervisor
             };
 
             const newRow = worksheet.addRow(rowData);
@@ -929,35 +996,88 @@ function renderAdminSupervisorList() {
     });
 }
 
-// Update form supervisor select dropdown options
+// Update form supervisor custom multiselect dropdown options
 function updateSupervisorSelect() {
-    // Preserve current selection if any
-    const currentValue = assignedSupervisorInput.value;
-    
-    assignedSupervisorInput.innerHTML = '<option value="" disabled selected>Select Supervisor</option>';
+    supervisorOptionsList.innerHTML = '';
     
     if (supervisorDirectory.length === 0) {
-        const option = document.createElement('option');
-        option.value = '';
-        option.disabled = true;
-        option.textContent = 'No supervisors available. Add in Admin Menu';
-        assignedSupervisorInput.appendChild(option);
+        supervisorOptionsList.innerHTML = `
+            <div style="color: var(--text-muted); padding: 10px; font-size: 0.9rem; text-align: center;">
+                No supervisors available. Add in Admin Menu.
+            </div>`;
+        selectedSupervisors = [];
+        syncSupervisorTagsUI();
         return;
     }
     
-    // Sort alphabetically for easy dropdown browsing
+    // Sort alphabetically for clean display
     const sorted = [...supervisorDirectory].sort();
     sorted.forEach(name => {
-        const option = document.createElement('option');
-        option.value = name;
-        option.textContent = name;
-        assignedSupervisorInput.appendChild(option);
+        const label = document.createElement('label');
+        label.className = 'option-label';
+        label.setAttribute('data-name', name);
+        
+        const isChecked = selectedSupervisors.includes(name);
+        
+        label.innerHTML = `
+            <input type="checkbox" value="${escapeHTML(name)}" ${isChecked ? 'checked' : ''}>
+            <span>${escapeHTML(name)}</span>
+        `;
+        
+        // Listen to checkbox changes
+        const checkbox = label.querySelector('input[type="checkbox"]');
+        checkbox.addEventListener('change', () => {
+            if (checkbox.checked) {
+                if (!selectedSupervisors.includes(name)) {
+                    selectedSupervisors.push(name);
+                }
+            } else {
+                selectedSupervisors = selectedSupervisors.filter(item => item !== name);
+            }
+            syncSupervisorTagsUI();
+        });
+        
+        supervisorOptionsList.appendChild(label);
     });
     
-    // Restore selection if it still exists
-    if (supervisorDirectory.includes(currentValue)) {
-        assignedSupervisorInput.value = currentValue;
+    // Cleanup selectedSupervisors of any deleted items
+    selectedSupervisors = selectedSupervisors.filter(name => supervisorDirectory.includes(name));
+    syncSupervisorTagsUI();
+}
+
+// Sync selection pills to UI Selectbox for supervisors
+function syncSupervisorTagsUI() {
+    supervisorTagsContainer.innerHTML = '';
+    
+    if (selectedSupervisors.length === 0) {
+        supervisorPlaceholder.style.display = 'block';
+    } else {
+        supervisorPlaceholder.style.display = 'none';
+        selectedSupervisors.forEach(name => {
+            const tag = document.createElement('span');
+            tag.className = 'tag-pill';
+            tag.innerHTML = `
+                ${escapeHTML(name)}
+                <span class="remove-tag" data-name="${escapeHTML(name)}">&times;</span>
+            `;
+            
+            // Allow removal by clicking cross icon
+            tag.querySelector('.remove-tag').addEventListener('click', (e) => {
+                e.stopPropagation(); // Avoid triggering select box toggle
+                deselectSupervisorMember(name);
+            });
+            
+            supervisorTagsContainer.appendChild(tag);
+        });
     }
+}
+
+// Helper to remove supervisor tag
+function deselectSupervisorMember(name) {
+    selectedSupervisors = selectedSupervisors.filter(item => item !== name);
+    const checkbox = supervisorOptionsList.querySelector(`input[type="checkbox"][value="${CSS.escape(name)}"]`);
+    if (checkbox) checkbox.checked = false;
+    syncSupervisorTagsUI();
 }
 
 // Status Directory Storage Methods
