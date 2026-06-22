@@ -122,6 +122,204 @@ const btnBulkPropertySubmit = document.getElementById('btn-bulk-property-submit'
 const adminPropertyList = document.getElementById('admin-property-list');
 const propertyCountBadge = document.getElementById('property-count');
 
+// Sync Queue and Database State
+let syncQueue = [];
+let isSyncing = false;
+
+const dbSyncStatus = document.getElementById('db-sync-status');
+const dbSyncText = document.getElementById('db-sync-text');
+
+function loadSyncQueue() {
+    const stored = localStorage.getItem('syncQueue');
+    if (stored) {
+        try {
+            syncQueue = JSON.parse(stored);
+        } catch (e) {
+            syncQueue = [];
+        }
+    } else {
+        syncQueue = [];
+    }
+}
+
+function saveSyncQueue() {
+    localStorage.setItem('syncQueue', JSON.stringify(syncQueue));
+}
+
+function addToSyncQueue(operation) {
+    if (operation.type === 'save_log') {
+        syncQueue = syncQueue.filter(op => !(op.type === 'save_log' && op.data.id === operation.data.id));
+    } else if (operation.type === 'delete_log') {
+        syncQueue = syncQueue.filter(op => !(op.type === 'save_log' && op.data.id === operation.data));
+        syncQueue = syncQueue.filter(op => !(op.type === 'delete_log' && op.data === operation.data));
+    } else if (operation.type.startsWith('save_') && operation.type.endsWith('_dir')) {
+        syncQueue = syncQueue.filter(op => op.type !== operation.type);
+    }
+    
+    syncQueue.push(operation);
+    saveSyncQueue();
+    updateSyncUI();
+    
+    syncOfflineData();
+}
+
+function updateSyncUI() {
+    if (!dbSyncStatus) return;
+    
+    if (syncQueue.length > 0) {
+        dbSyncStatus.classList.remove('hidden');
+        dbSyncStatus.className = 'db-sync-status syncing';
+        dbSyncText.textContent = `Pending Sync (${syncQueue.length})`;
+    } else {
+        dbSyncStatus.classList.remove('hidden');
+        dbSyncStatus.className = 'db-sync-status synced';
+        dbSyncText.textContent = 'Synced';
+        setTimeout(() => {
+            if (syncQueue.length === 0) {
+                dbSyncStatus.classList.add('hidden');
+            }
+        }, 3000);
+    }
+}
+
+async function syncOfflineData() {
+    if (isSyncing || syncQueue.length === 0) return;
+    if (!navigator.onLine) {
+        updateSyncUI();
+        return;
+    }
+    
+    isSyncing = true;
+    updateSyncUI();
+    
+    try {
+        while (syncQueue.length > 0) {
+            const op = syncQueue[0];
+            let success = false;
+            
+            const actionMap = {
+                'save_log': 'save_log',
+                'delete_log': 'delete_log',
+                'clear_all_logs': 'clear_all_logs',
+                'save_staff_dir': 'save_staff_dir',
+                'save_supervisor_dir': 'save_supervisor_dir',
+                'save_status_dir': 'save_status_dir',
+                'save_property_dir': 'save_property_dir',
+                'save_user_dir': 'save_user_dir'
+            };
+            
+            const action = actionMap[op.type];
+            if (!action) {
+                syncQueue.shift();
+                saveSyncQueue();
+                continue;
+            }
+            
+            let bodyData = {};
+            if (op.type === 'save_log') {
+                bodyData = { log: op.data };
+            } else if (op.type === 'delete_log') {
+                bodyData = { id: op.data };
+            } else if (op.type === 'save_staff_dir') {
+                bodyData = { staff: op.data };
+            } else if (op.type === 'save_supervisor_dir') {
+                bodyData = { supervisors: op.data };
+            } else if (op.type === 'save_status_dir') {
+                bodyData = { statuses: op.data };
+            } else if (op.type === 'save_property_dir') {
+                bodyData = { properties: op.data };
+            } else if (op.type === 'save_user_dir') {
+                bodyData = { users: op.data };
+            }
+            
+            const response = await fetch(`api.php?action=${action}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(bodyData)
+            });
+            const resData = await response.json();
+            success = resData.success;
+            
+            if (success) {
+                syncQueue.shift();
+                saveSyncQueue();
+                updateSyncUI();
+            } else {
+                console.error('Failed to sync operation:', op, resData.message);
+                dbSyncStatus.className = 'db-sync-status error';
+                dbSyncText.textContent = 'Sync Error';
+                break;
+            }
+        }
+    } catch (error) {
+        console.error('Connection error during sync:', error);
+        dbSyncStatus.className = 'db-sync-status error';
+        dbSyncText.textContent = 'Sync Paused';
+    } finally {
+        isSyncing = false;
+        updateSyncUI();
+    }
+}
+
+async function initDatabaseState() {
+    loadSyncQueue();
+    updateSyncUI();
+    
+    window.addEventListener('online', () => {
+        syncOfflineData();
+    });
+    
+    try {
+        const response = await fetch('api.php?action=init_app');
+        const data = await response.json();
+        
+        if (data.success) {
+            logEntries = data.logs || [];
+            staffDirectory = data.staff || [];
+            supervisorDirectory = data.supervisors || [];
+            statusDirectory = data.statuses || [];
+            propertyDirectory = data.properties || [];
+            userDirectory = data.users || [];
+            
+            localStorage.setItem('dailyLogs', JSON.stringify(logEntries));
+            localStorage.setItem('staffDirectory', JSON.stringify(staffDirectory));
+            localStorage.setItem('supervisorDirectory', JSON.stringify(supervisorDirectory));
+            localStorage.setItem('statusDirectory', JSON.stringify(statusDirectory));
+            localStorage.setItem('propertyDirectory', JSON.stringify(propertyDirectory));
+            localStorage.setItem('userDirectory', JSON.stringify(userDirectory));
+            
+            console.log('Database state loaded and cached successfully.');
+        } else {
+            console.warn('API returned error, loading from local cache:', data.message);
+            loadAllFromLocalStorage();
+        }
+    } catch (e) {
+        console.error('Failed to connect to database, loading from local cache:', e);
+        loadAllFromLocalStorage();
+    }
+    
+    await initAuth();
+    
+    renderTable();
+    updateStaffSelect();
+    updateSupervisorSelect();
+    updateStatusSelect();
+    updatePropertySelect();
+    
+    if (syncQueue.length > 0) {
+        syncOfflineData();
+    }
+}
+
+function loadAllFromLocalStorage() {
+    loadUserDirectory();
+    loadEntries();
+    loadStaffDirectory();
+    loadSupervisorDirectory();
+    loadStatusDirectory();
+    loadPropertyDirectory();
+}
+
 // Initialize App
 document.addEventListener('DOMContentLoaded', () => {
     // Register Service Worker for PWA
@@ -131,32 +329,14 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(err => console.log('Service Worker registration failed:', err));
     }
 
-    // Load User Directory
-    loadUserDirectory();
-
-    // Initialize Authentication
-    initAuth();
-
     // Initialize iOS PWA Install Prompt
     initIOSInstallPrompt();
 
-    // Load Entries from Local Storage
-    loadEntries();
-    
-    // Load Staff Directory
-    loadStaffDirectory();
-
-    // Load Supervisor Directory
-    loadSupervisorDirectory();
-
-    // Load Status Directory
-    loadStatusDirectory();
-
-    // Load Property Directory
-    loadPropertyDirectory();
-
     // Theme Initializer
     initTheme();
+
+    // Load Database state
+    initDatabaseState();
 
     // Event Listeners
     logDateInput.addEventListener('change', handleDateChange);
@@ -471,6 +651,7 @@ function handleFormSubmit(e) {
     }
 
     saveEntries();
+    addToSyncQueue({ type: 'save_log', data: entryData });
     resetForm();
 }
 
@@ -595,6 +776,7 @@ window.deleteEntry = function(id) {
     if (confirm('Are you sure you want to delete this log entry?')) {
         logEntries = logEntries.filter(item => item.id !== id);
         saveEntries();
+        addToSyncQueue({ type: 'delete_log', data: id });
         if (editId === id) resetForm();
     }
 };
@@ -612,6 +794,7 @@ function clearAllEntries() {
     if (confirm('CRITICAL: This will delete ALL logged entries permanently. Proceed?')) {
         logEntries = [];
         saveEntries();
+        addToSyncQueue({ type: 'clear_all_logs', data: null });
         resetForm();
     }
 }
@@ -896,6 +1079,7 @@ function saveStaffDirectory() {
     localStorage.setItem('staffDirectory', JSON.stringify(staffDirectory));
     updateStaffSelect();
     renderAdminStaffList();
+    addToSyncQueue({ type: 'save_staff_dir', data: staffDirectory });
 }
 
 // Add staff via inline form
@@ -1105,6 +1289,7 @@ function saveSupervisorDirectory() {
     localStorage.setItem('supervisorDirectory', JSON.stringify(supervisorDirectory));
     updateSupervisorSelect();
     renderAdminSupervisorList();
+    addToSyncQueue({ type: 'save_supervisor_dir', data: supervisorDirectory });
 }
 
 // Add supervisor via inline form
@@ -1302,9 +1487,8 @@ function saveStatusDirectory() {
     localStorage.setItem('statusDirectory', JSON.stringify(statusDirectory));
     updateStatusSelect();
     renderAdminStatusList();
-    
-    // Also re-render logs table in case statuses were removed or added
     renderTable();
+    addToSyncQueue({ type: 'save_status_dir', data: statusDirectory });
 }
 
 // Add status via inline form
@@ -1469,6 +1653,7 @@ function savePropertyDirectory() {
     localStorage.setItem('propertyDirectory', JSON.stringify(propertyDirectory));
     updatePropertySelect();
     renderAdminPropertyList();
+    addToSyncQueue({ type: 'save_property_dir', data: propertyDirectory });
 }
 
 // Add property via inline form
@@ -1633,6 +1818,7 @@ function loadUserDirectory() {
 function saveUserDirectory() {
     localStorage.setItem('userDirectory', JSON.stringify(userDirectory));
     renderAdminUserList();
+    addToSyncQueue({ type: 'save_user_dir', data: userDirectory });
 }
 
 // Pre-seed default administrator user if no users exist
@@ -1709,32 +1895,48 @@ async function handleLoginSubmit(e) {
     
     if (!username || !password) return;
     
-    const user = userDirectory.find(u => u.username.toLowerCase() === username);
-    if (!user) {
-        alert('Invalid username or password.');
-        return;
-    }
-    
     const inputHash = await hashPassword(password);
-    if (user.passwordHash !== inputHash) {
-        alert('Invalid username or password.');
-        return;
+    
+    try {
+        const response = await fetch('api.php?action=login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, passwordHash: inputHash })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            const sessionData = data.user;
+            sessionStorage.setItem('currentLogUser', JSON.stringify(sessionData));
+            applyUserSession(sessionData);
+            
+            loginUsernameInput.value = '';
+            loginPasswordInput.value = '';
+        } else {
+            alert(data.message || 'Invalid username or password.');
+        }
+    } catch (error) {
+        console.error('Network error during login, attempting local fallback:', error);
+        
+        const user = userDirectory.find(u => u.username.toLowerCase() === username);
+        if (user && user.passwordHash) {
+            if (user.passwordHash === inputHash) {
+                const sessionData = {
+                    id: user.id,
+                    name: user.name,
+                    username: user.username,
+                    role: user.role
+                };
+                sessionStorage.setItem('currentLogUser', JSON.stringify(sessionData));
+                applyUserSession(sessionData);
+                
+                loginUsernameInput.value = '';
+                loginPasswordInput.value = '';
+                return;
+            }
+        }
+        alert('Invalid username or password, or server is offline.');
     }
-    
-    // Login successful
-    const sessionData = {
-        id: user.id,
-        name: user.name,
-        username: user.username,
-        role: user.role
-    };
-    
-    sessionStorage.setItem('currentLogUser', JSON.stringify(sessionData));
-    applyUserSession(sessionData);
-    
-    // Reset login form fields
-    loginUsernameInput.value = '';
-    loginPasswordInput.value = '';
 }
 
 // Handle Logout click
