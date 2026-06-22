@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Log - Commercial Duty Tracker</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- CSS Stylesheet -->
+    <link rel="stylesheet" href="styles.css">
+    <!-- ExcelJS CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js" integrity="sha512-dlWQ+HUX4IK9wWjaQ7f3nJpX8vFm4fR6puxfM317AdbWMMmH4ZcZzIolmsaT2Jj6N915F79kGphY4QoGkFpx3w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar or Header Banner -->
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2zm0-4H7V7h10v2zm0 8H7v-2h10v2z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1>Daily Log</h1>
+                    <p class="subtitle">Commercial Division</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button id="btn-admin-open" class="btn btn-secondary-icon" title="Admin Settings" aria-label="Admin Settings">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
+                    </svg>
+                </button>
+                <button id="theme-toggle" class="btn btn-secondary-icon" title="Toggle Theme" aria-label="Toggle Theme">
+                    <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.01c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/>
+                    </svg>
+                    <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-3.03 0-5.5-2.47-5.5-5.5 0-1.82.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <main class="app-content">
+            <!-- Form Card -->
+            <section class="card form-card">
+                <div class="card-header">
+                    <h2>Log Entry Form</h2>
+                    <p>Enter duty and activity details below</p>
+                </div>
+                <form id="log-form" novalidate>
+                    <input type="hidden" id="entry-id">
+                    
+                    <div class="form-grid">
+                        <!-- Date & Day Row -->
+                        <div class="form-group">
+                            <label for="log-date">Date <span class="required">*</span></label>
+                            <input type="date" id="log-date" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="log-day">Day</label>
+                            <input type="text" id="log-day" readonly placeholder="Auto-calculated" tabindex="-1">
+                        </div>
+
+                        <!-- Property Name -->
+                        <div class="form-group">
+                            <label for="property-name">Property Name <span class="required">*</span></label>
+                            <input type="text" id="property-name" placeholder="Enter property name" list="properties-list" required>
+                            <datalist id="properties-list">
+                                <option value="HDC Building"></option>
+                                <option value="Commercial Complex A"></option>
+                                <option value="Warehouse Zone 1"></option>
+                                <option value="Office Tower"></option>
+                                <option value="Industrial Park"></option>
+                            </datalist>
+                        </div>
+
+                        <!-- Duty Type -->
+                        <div class="form-group">
+                            <label for="duty-type">Duty Type <span class="required">*</span></label>
+                            <input type="text" id="duty-type" placeholder="Select or type duty" list="duties-list" required>
+                            <datalist id="duties-list">
+                                <option value="Over Time Hrs"></option>
+                                <option value="Regular Shift"></option>
+                                <option value="Night Duty"></option>
+                                <option value="On Call Response"></option>
+                                <option value="Emergency Maintenance"></option>
+                            </datalist>
+                        </div>
+
+                        <!-- Time block -->
+                        <div class="form-group">
+                            <label for="start-time">Start Time <span class="required">*</span></label>
+                            <input type="time" id="start-time" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="break-time">Break Time</label>
+                            <input type="text" id="break-time" placeholder="e.g. - or 1 Hour" value="-">
+                        </div>
+                        <div class="form-group">
+                            <label for="end-time">End Time <span class="required">*</span></label>
+                            <input type="time" id="end-time" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="status">Status <span class="required">*</span></label>
+                            <select id="status" required>
+                                <option value="" disabled selected>Select Status</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="assigned-staff">Assigned Staff <span class="required">*</span></label>
+                            <select id="assigned-staff" required>
+                                <option value="" disabled selected>Select Staff</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="assigned-supervisor">Assigned Supervisor <span class="required">*</span></label>
+                            <select id="assigned-supervisor" required>
+                                <option value="" disabled selected>Select Supervisor</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Work Details (Full width) -->
+                    <div class="form-group full-width">
+                        <label for="work-detail">Work Detail <span class="required">*</span></label>
+                        <textarea id="work-detail" rows="3" placeholder="Describe the work done during this shift..." required></textarea>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" id="btn-cancel" class="btn btn-secondary hidden">Cancel Edit</button>
+                        <button type="submit" id="btn-submit" class="btn btn-primary">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="btn-icon">
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                            </svg>
+                            <span>Add Entry</span>
+                        </button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Table Card / Data Log -->
+            <section class="card table-card">
+                <div class="table-header-bar">
+                    <div class="table-header-left">
+                        <h2>Logged Entries</h2>
+                        <div class="badge" id="entry-count">0 entries</div>
+                    </div>
+                    <div class="table-header-right">
+                        <button id="btn-clear-all" class="btn btn-danger-text" title="Clear all entries from local storage">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                            </svg>
+                            Clear All
+                        </button>
+                        <button id="btn-export" class="btn btn-success">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="btn-icon">
+                                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+                            </svg>
+                            Export to Excel
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table id="logs-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Day</th>
+                                <th>Property Name</th>
+                                <th>Duty Type</th>
+                                <th>Start Time</th>
+                                <th>Break Time</th>
+                                <th>End Time</th>
+                                <th>Work Detail</th>
+                                <th>Status</th>
+                                <th>Assigned Staff</th>
+                                <th>Assigned Supervisor</th>
+                                <th class="actions-col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-body">
+                            <!-- Rows will be dynamically loaded by app.js -->
+                            <tr class="empty-row-placeholder">
+                                <td colspan="12" class="text-center">No entries recorded yet. Fill out the form above to add an entry.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Admin Modal Overlay -->
+    <div id="admin-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2>Admin Settings - Directory Manager</h2>
+                <button id="btn-admin-close" class="btn-close-modal" aria-label="Close Admin Modal">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                </button>
+            </div>
+            <!-- Tabs Menu -->
+            <div class="modal-tabs">
+                <button class="tab-btn active" data-tab="tab-staff">Staff Directory</button>
+                <button class="tab-btn" data-tab="tab-supervisor">Supervisor Directory</button>
+                <button class="tab-btn" data-tab="tab-status">Status Directory</button>
+            </div>
+            
+            <div class="modal-body">
+                <!-- Staff Tab -->
+                <div id="tab-staff" class="tab-content">
+                    <!-- Add Single Staff Form -->
+                    <div class="admin-section">
+                        <h3>Add New Staff Member</h3>
+                        <form id="admin-add-staff-form" class="admin-inline-form">
+                            <input type="text" id="new-staff-name" placeholder="Enter staff name (e.g. John Doe)" required>
+                            <button type="submit" class="btn btn-primary">Add Staff</button>
+                        </form>
+                    </div>
+
+                    <!-- Bulk Actions -->
+                    <div class="admin-section">
+                        <h3>Bulk Operations</h3>
+                        <div style="margin-bottom: 1rem;">
+                            <button id="btn-import-preset" class="btn btn-success" type="button">
+                                Import Default Staff List (25 Members)
+                            </button>
+                        </div>
+                        <div class="bulk-import-container">
+                            <label for="bulk-staff-input">Or paste names below (one per line):</label>
+                            <textarea id="bulk-staff-input" rows="4" placeholder="Ahmed Saleem&#10;Moosa Jameel&#10;Abdulla Hussain"></textarea>
+                            <button id="btn-bulk-import-submit" class="btn btn-secondary" type="button">Bulk Import Pasted List</button>
+                        </div>
+                    </div>
+
+                    <!-- Staff Directory List -->
+                    <div class="admin-section">
+                        <div class="section-title-bar">
+                            <h3>Current Staff Directory</h3>
+                            <span class="badge" id="staff-count">0 staff members</span>
+                        </div>
+                        <div class="staff-list-container">
+                            <ul id="admin-staff-list" class="staff-list">
+                                <!-- Populated dynamically -->
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Supervisor Tab -->
+                <div id="tab-supervisor" class="tab-content hidden">
+                    <!-- Add Single Supervisor Form -->
+                    <div class="admin-section">
+                        <h3>Add New Supervisor</h3>
+                        <form id="admin-add-supervisor-form" class="admin-inline-form">
+                            <input type="text" id="new-supervisor-name" placeholder="Enter supervisor name (e.g. John Doe)" required>
+                            <button type="submit" class="btn btn-primary">Add Supervisor</button>
+                        </form>
+                    </div>
+
+                    <!-- Bulk Supervisor Actions -->
+                    <div class="admin-section">
+                        <h3>Bulk Operations</h3>
+                        <div class="bulk-import-container" style="margin-top: 0;">
+                            <label for="bulk-supervisor-input">Paste supervisor names below (one per line):</label>
+                            <textarea id="bulk-supervisor-input" rows="4" placeholder="Supervisor Name 1&#10;Supervisor Name 2"></textarea>
+                            <button id="btn-bulk-supervisor-submit" class="btn btn-secondary" type="button">Bulk Import Supervisors</button>
+                        </div>
+                    </div>
+
+                    <!-- Supervisor Directory List -->
+                    <div class="admin-section">
+                        <div class="section-title-bar">
+                            <h3>Current Supervisor Directory</h3>
+                            <span class="badge" id="supervisor-count">0 supervisors</span>
+                        </div>
+                        <div class="staff-list-container">
+                            <ul id="admin-supervisor-list" class="staff-list">
+                                <!-- Populated dynamically -->
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status Tab -->
+                <div id="tab-status" class="tab-content hidden">
+                    <!-- Add Single Status Form -->
+                    <div class="admin-section">
+                        <h3>Add New Status</h3>
+                        <form id="admin-add-status-form" class="admin-inline-form">
+                            <input type="text" id="new-status-name" placeholder="Enter status (e.g. Cancelled)" required>
+                            <button type="submit" class="btn btn-primary">Add Status</button>
+                        </form>
+                    </div>
+
+                    <!-- Bulk Status Actions -->
+                    <div class="admin-section">
+                        <h3>Bulk Operations</h3>
+                        <div style="margin-bottom: 1rem;">
+                            <button id="btn-import-default-status" class="btn btn-success" type="button">
+                                Import Default Statuses
+                            </button>
+                        </div>
+                        <div class="bulk-import-container">
+                            <label for="bulk-status-input">Or paste statuses below (one per line):</label>
+                            <textarea id="bulk-status-input" rows="4" placeholder="Pending&#10;In Progress&#10;Completed"></textarea>
+                            <button id="btn-bulk-status-submit" class="btn btn-secondary" type="button">Bulk Import Statuses</button>
+                        </div>
+                    </div>
+
+                    <!-- Status Directory List -->
+                    <div class="admin-section">
+                        <div class="section-title-bar">
+                            <h3>Current Statuses</h3>
+                            <span class="badge" id="status-count">0 statuses</span>
+                        </div>
+                        <div class="staff-list-container">
+                            <ul id="admin-status-list" class="staff-list">
+                                <!-- Populated dynamically -->
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Debug Diagnostic Script -->
+    <script src="debug.js"></script>
+    <!-- Main Logic Script -->
+    <script src="app.js"></script>
+</body>
+</html>
