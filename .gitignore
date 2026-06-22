@@ -1,4 +1,3 @@
 node_modules/
 .gemini/
-.pagesignore
 package-lock.json

@@ -1,0 +1,6 @@
+node_modules
+.git
+.gemini
+package-lock.json
+package.json
+debug.js
