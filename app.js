@@ -7,6 +7,8 @@ let statusDirectory = [];
 let propertyDirectory = [];
 let selectedStaff = [];
 let selectedSupervisors = [];
+let currentUser = null;
+let userDirectory = [];
 
 // DOM Elements
 const logForm = document.getElementById('log-form');
@@ -37,6 +39,25 @@ const supervisorTagsContainer = document.getElementById('supervisor-tags');
 const supervisorOptionsDropdown = document.getElementById('supervisor-options-dropdown');
 const supervisorSearchInput = document.getElementById('supervisor-search-input');
 const supervisorOptionsList = document.getElementById('supervisor-options-list');
+
+// Login and Session DOM Elements
+const loginOverlay = document.getElementById('login-overlay');
+const loginFormElement = document.getElementById('login-form-element');
+const loginUsernameInput = document.getElementById('login-username');
+const loginPasswordInput = document.getElementById('login-password');
+const userBadge = document.getElementById('user-badge');
+const userNameDisplay = document.getElementById('user-name-display');
+const userRoleDisplay = document.getElementById('user-role-display');
+const btnLogout = document.getElementById('btn-logout');
+
+// Admin Panel Users DOM Elements
+const adminAddUserForm = document.getElementById('admin-add-user-form');
+const newUserNameInput = document.getElementById('new-user-name');
+const newUserUsernameInput = document.getElementById('new-user-username');
+const newUserPasswordInput = document.getElementById('new-user-password');
+const newUserRoleSelect = document.getElementById('new-user-role');
+const adminUserList = document.getElementById('admin-user-list');
+const userCountBadge = document.getElementById('user-count');
 
 const btnSubmit = document.getElementById('btn-submit');
 const btnCancel = document.getElementById('btn-cancel');
@@ -86,6 +107,12 @@ const propertyCountBadge = document.getElementById('property-count');
 
 // Initialize App
 document.addEventListener('DOMContentLoaded', () => {
+    // Load User Directory
+    loadUserDirectory();
+
+    // Initialize Authentication
+    initAuth();
+
     // Load Entries from Local Storage
     loadEntries();
     
@@ -112,12 +139,17 @@ document.addEventListener('DOMContentLoaded', () => {
     btnClearAll.addEventListener('click', clearAllEntries);
     themeToggle.addEventListener('click', toggleTheme);
 
+    // Login and Logout Event Listeners
+    loginFormElement.addEventListener('submit', handleLoginSubmit);
+    btnLogout.addEventListener('click', handleLogoutClick);
+
     // Admin Modal Event Listeners
     btnAdminOpen.addEventListener('click', () => toggleAdminModal(true));
     btnAdminClose.addEventListener('click', () => toggleAdminModal(false));
     adminAddStaffForm.addEventListener('submit', handleAddStaffSubmit);
     btnImportPreset.addEventListener('click', importPresetStaff);
     btnBulkImportSubmit.addEventListener('click', handleBulkImportSubmit);
+    adminAddUserForm.addEventListener('submit', handleAddUserSubmit);
 
     // Custom Multiselect Event Listeners (Staff & Supervisor)
     staffSelectBox.addEventListener('click', (e) => {
@@ -304,6 +336,26 @@ function renderTable() {
 
         const statusClass = entry.status ? entry.status.toLowerCase().replace(/ /g, '-') : '';
 
+        const canEdit = currentUser && (
+            currentUser.role === 'Admin' || 
+            currentUser.role === 'Supervisor' || 
+            !entry.createdBy || 
+            entry.createdBy === currentUser.username
+        );
+
+        const actionsHtml = canEdit ? `
+                <button class="btn-action-icon edit" onclick="editEntry('${entry.id}')" title="Edit Entry">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                    </svg>
+                </button>
+                <button class="btn-action-icon delete" onclick="deleteEntry('${entry.id}')" title="Delete Entry">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                    </svg>
+                </button>
+        ` : `<span style="color: var(--text-muted); font-size: 0.8rem; font-style: italic;">No Access</span>`;
+
         tr.innerHTML = `
             <td>${formattedDate}</td>
             <td>${entry.day}</td>
@@ -317,16 +369,7 @@ function renderTable() {
             <td>${escapeHTML(Array.isArray(entry.assignedStaff) ? entry.assignedStaff.join(', ') : entry.assignedStaff)}</td>
             <td>${escapeHTML(Array.isArray(entry.assignedSupervisor) ? entry.assignedSupervisor.join(', ') : entry.assignedSupervisor)}</td>
             <td class="actions-col">
-                <button class="btn-action-icon edit" onclick="editEntry('${entry.id}')" title="Edit Entry">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                    </svg>
-                </button>
-                <button class="btn-action-icon delete" onclick="deleteEntry('${entry.id}')" title="Delete Entry">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                    </svg>
-                </button>
+                ${actionsHtml}
             </td>
         `;
         logsBody.appendChild(tr);
@@ -353,6 +396,7 @@ function handleFormSubmit(e) {
         return;
     }
 
+    const originalEntry = editId ? logEntries.find(item => item.id === editId) : null;
     const entryData = {
         id: editId || 'id_' + Date.now(),
         date: logDateInput.value,
@@ -365,7 +409,8 @@ function handleFormSubmit(e) {
         workDetail: workDetailInput.value.trim(),
         status: statusSelect.value,
         assignedStaff: selectedStaff,
-        assignedSupervisor: selectedSupervisors
+        assignedSupervisor: selectedSupervisors,
+        createdBy: originalEntry ? (originalEntry.createdBy || 'admin') : (currentUser ? currentUser.username : 'admin')
     };
 
     if (editId) {
@@ -387,6 +432,18 @@ function handleFormSubmit(e) {
 window.editEntry = function(id) {
     const entry = logEntries.find(item => item.id === id);
     if (!entry) return;
+
+    // RBAC validation
+    const canEdit = currentUser && (
+        currentUser.role === 'Admin' || 
+        currentUser.role === 'Supervisor' || 
+        !entry.createdBy || 
+        entry.createdBy === currentUser.username
+    );
+    if (!canEdit) {
+        alert('Permission Denied: Staff members can only edit their own entries.');
+        return;
+    }
 
     editId = id;
     entryIdInput.value = entry.id;
@@ -474,6 +531,21 @@ function resetForm() {
 
 // Delete Log Entry
 window.deleteEntry = function(id) {
+    const entry = logEntries.find(item => item.id === id);
+    if (!entry) return;
+
+    // RBAC validation
+    const canDelete = currentUser && (
+        currentUser.role === 'Admin' || 
+        currentUser.role === 'Supervisor' || 
+        !entry.createdBy || 
+        entry.createdBy === currentUser.username
+    );
+    if (!canDelete) {
+        alert('Permission Denied: Staff members can only delete their own entries.');
+        return;
+    }
+
     if (confirm('Are you sure you want to delete this log entry?')) {
         logEntries = logEntries.filter(item => item.id !== id);
         saveEntries();
@@ -484,6 +556,13 @@ window.deleteEntry = function(id) {
 // Clear All Entries
 function clearAllEntries() {
     if (logEntries.length === 0) return;
+
+    // RBAC validation
+    if (!currentUser || currentUser.role !== 'Admin') {
+        alert('Permission Denied: Only administrators can clear all entries.');
+        return;
+    }
+
     if (confirm('CRITICAL: This will delete ALL logged entries permanently. Proceed?')) {
         logEntries = [];
         saveEntries();
@@ -671,11 +750,15 @@ const PRESET_STAFF = [
 // Admin Modal toggler
 function toggleAdminModal(show) {
     if (show) {
+        if (!currentUser || currentUser.role !== 'Admin') {
+            return;
+        }
         adminModal.classList.remove('hidden');
         renderAdminStaffList();
         renderAdminSupervisorList();
         renderAdminStatusList();
         renderAdminPropertyList();
+        renderAdminUserList();
     } else {
         adminModal.classList.add('hidden');
     }
@@ -1409,4 +1492,240 @@ function updatePropertySelect() {
     if (propertyDirectory.includes(currentValue)) {
         propertyNameInput.value = currentValue;
     }
+}
+
+// Native SHA-256 password hashing helper
+async function hashPassword(password) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// User Directory storage methods
+function loadUserDirectory() {
+    const stored = localStorage.getItem('userDirectory');
+    if (stored) {
+        try {
+            userDirectory = JSON.parse(stored);
+        } catch (e) {
+            userDirectory = [];
+        }
+    } else {
+        userDirectory = [];
+    }
+}
+
+function saveUserDirectory() {
+    localStorage.setItem('userDirectory', JSON.stringify(userDirectory));
+    renderAdminUserList();
+}
+
+// Pre-seed default administrator user if no users exist
+async function preseedDefaultAdmin() {
+    if (userDirectory.length === 0) {
+        const defaultHash = await hashPassword('admin123');
+        userDirectory.push({
+            id: 'u_' + Date.now(),
+            name: 'System Admin',
+            username: 'admin',
+            passwordHash: defaultHash,
+            role: 'Admin'
+        });
+        saveUserDirectory();
+    }
+}
+
+// Initialize Auth
+async function initAuth() {
+    await preseedDefaultAdmin();
+    
+    // Check if session exists
+    const storedSession = sessionStorage.getItem('currentLogUser');
+    if (storedSession) {
+        try {
+            const user = JSON.parse(storedSession);
+            // Verify user still exists in directory
+            const exists = userDirectory.find(u => u.username === user.username && u.role === user.role);
+            if (exists) {
+                applyUserSession(user);
+                return;
+            }
+        } catch (e) {
+            // Clear corrupted session
+            sessionStorage.removeItem('currentLogUser');
+        }
+    }
+    
+    // If no valid session, show login overlay
+    loginOverlay.classList.remove('hidden');
+    userBadge.classList.add('hidden');
+    btnLogout.classList.add('hidden');
+    btnAdminOpen.classList.add('hidden');
+}
+
+// Apply User Session after login or page reload
+function applyUserSession(user) {
+    currentUser = user;
+    loginOverlay.classList.add('hidden');
+    
+    // Show Session elements in header
+    userNameDisplay.textContent = user.name;
+    userRoleDisplay.textContent = user.role;
+    userBadge.classList.remove('hidden');
+    btnLogout.classList.remove('hidden');
+    
+    // Restrict Admin Settings gear based on Role
+    if (user.role === 'Admin') {
+        btnAdminOpen.classList.remove('hidden');
+    } else {
+        btnAdminOpen.classList.add('hidden');
+        toggleAdminModal(false); // Make sure modal closes if open
+    }
+    
+    // Re-render logs table to respect role-based action column visibility
+    renderTable();
+}
+
+// Handle Login submit
+async function handleLoginSubmit(e) {
+    e.preventDefault();
+    const username = loginUsernameInput.value.trim().toLowerCase();
+    const password = loginPasswordInput.value;
+    
+    if (!username || !password) return;
+    
+    const user = userDirectory.find(u => u.username.toLowerCase() === username);
+    if (!user) {
+        alert('Invalid username or password.');
+        return;
+    }
+    
+    const inputHash = await hashPassword(password);
+    if (user.passwordHash !== inputHash) {
+        alert('Invalid username or password.');
+        return;
+    }
+    
+    // Login successful
+    const sessionData = {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        role: user.role
+    };
+    
+    sessionStorage.setItem('currentLogUser', JSON.stringify(sessionData));
+    applyUserSession(sessionData);
+    
+    // Reset login form fields
+    loginUsernameInput.value = '';
+    loginPasswordInput.value = '';
+}
+
+// Handle Logout click
+function handleLogoutClick() {
+    sessionStorage.removeItem('currentLogUser');
+    currentUser = null;
+    
+    // Hide UI elements
+    userBadge.classList.add('hidden');
+    btnLogout.classList.add('hidden');
+    btnAdminOpen.classList.add('hidden');
+    toggleAdminModal(false);
+    
+    // Show login overlay
+    loginOverlay.classList.remove('hidden');
+}
+
+// Create new user via Admin tab
+async function handleAddUserSubmit(e) {
+    e.preventDefault();
+    const name = newUserNameInput.value.trim();
+    const username = newUserUsernameInput.value.trim().toLowerCase();
+    const password = newUserPasswordInput.value;
+    const role = newUserRoleSelect.value;
+    
+    if (!name || !username || !password || !role) return;
+    
+    if (userDirectory.some(u => u.username.toLowerCase() === username)) {
+        alert('A user with this username already exists.');
+        return;
+    }
+    
+    const passHash = await hashPassword(password);
+    
+    userDirectory.push({
+        id: 'u_' + Date.now(),
+        name: name,
+        username: username,
+        passwordHash: passHash,
+        role: role
+    });
+    
+    saveUserDirectory();
+    
+    // Reset inputs
+    newUserNameInput.value = '';
+    newUserUsernameInput.value = '';
+    newUserPasswordInput.value = '';
+    newUserRoleSelect.value = 'Staff';
+}
+
+// Delete user row
+window.deleteUser = function(userId) {
+    const user = userDirectory.find(u => u.id === userId);
+    if (!user) return;
+    
+    // Prevent self-deletion
+    if (currentUser && currentUser.username.toLowerCase() === user.username.toLowerCase()) {
+        alert('You cannot delete your own account while logged in.');
+        return;
+    }
+    
+    // Prevent deleting default admin if it is the only Admin remaining
+    const adminsCount = userDirectory.filter(u => u.role === 'Admin').length;
+    if (user.role === 'Admin' && adminsCount <= 1) {
+        alert('System must have at least one administrator account.');
+        return;
+    }
+    
+    if (confirm(`Are you sure you want to delete the user "${user.name}" (${user.username})?`)) {
+        userDirectory = userDirectory.filter(u => u.id !== userId);
+        saveUserDirectory();
+    }
+};
+
+// Render user directory list inside Admin settings modal
+function renderAdminUserList() {
+    adminUserList.innerHTML = '';
+    userCountBadge.textContent = `${userDirectory.length} ${userDirectory.length === 1 ? 'user' : 'users'}`;
+    
+    if (userDirectory.length === 0) {
+        adminUserList.innerHTML = `
+            <li style="color: var(--text-muted); justify-content: center; padding: 1.5rem; text-align: center;">
+                Directory is empty. Add users above.
+            </li>`;
+        return;
+    }
+    
+    // Sort users alphabetically
+    const sorted = [...userDirectory].sort((a, b) => a.name.localeCompare(b.name));
+    
+    sorted.forEach(user => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-weight: 600;">${escapeHTML(user.name)}</span>
+                <span style="font-size: 0.8rem; color: var(--text-secondary);">@${escapeHTML(user.username)} &bull; <span class="badge" style="font-size: 0.7rem; padding: 1px 6px; background-color: var(--primary-light); color: var(--primary-color); border-radius: 8px;">${user.role}</span></span>
+            </div>
+            <button class="btn-action-icon delete" onclick="deleteUser('${user.id}')" title="Delete User">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                </svg>
+            </button>
+        `;
+        adminUserList.appendChild(li);
+    });
 }
