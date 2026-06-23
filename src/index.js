@@ -302,7 +302,7 @@ async function handleApiRequest(request, env) {
                         { $set: { name: u.name, username: u.username, role: u.role } }
                     );
                 } else {
-                    const passHash = u.passwordHash || '4813494d137e1631bba301d5acab6e7bb7aa74ce1185d456565ef51d737677b2'; // fallback default
+                    const passHash = u.passwordHash || '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9'; // fallback default
                     await database.collection('users').insertOne({
                         id: u.id,
                         name: u.name,
@@ -330,9 +330,15 @@ async function seedDefaultAdmin(database) {
             id: 'u_' + Date.now(),
             name: 'System Admin',
             username: 'admin',
-            passwordHash: '4813494d137e1631bba301d5acab6e7bb7aa74ce1185d456565ef51d737677b2', // admin123
+            passwordHash: '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', // admin123
             role: 'Admin',
             createdAt: new Date()
         });
+    } else {
+        // Correct the password hash for default admin if it is currently 'root' (4813494d...)
+        await usersCollection.updateOne(
+            { username: 'admin', passwordHash: '4813494d137e1631bba301d5acab6e7bb7aa74ce1185d456565ef51d737677b2' },
+            { $set: { passwordHash: '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9' } }
+        );
     }
 }
