@@ -16,15 +16,33 @@ async function getDatabase(connectionString) {
 
 export default {
     async fetch(request, env, ctx) {
-        const url = new URL(request.url);
-        
-        // If it's an API request, handle it with our serverless DB API logic
-        if (url.pathname.startsWith('/api')) {
-            return handleApiRequest(request, env);
+        try {
+            const url = new URL(request.url);
+            
+            // If it's an API request, handle it with our serverless DB API logic
+            if (url.pathname.startsWith('/api')) {
+                return await handleApiRequest(request, env);
+            }
+            
+            // Otherwise, serve static assets
+            return await env.ASSETS.fetch(request);
+        } catch (error) {
+            console.error('Unhandled Worker Error:', error);
+            const corsHeaders = {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Content-Type': 'application/json'
+            };
+            return new Response(JSON.stringify({
+                error: true,
+                message: 'Unhandled server error: ' + error.message,
+                stack: error.stack
+            }), {
+                status: 500,
+                headers: corsHeaders
+            });
         }
-        
-        // Otherwise, serve static assets
-        return env.ASSETS.fetch(request);
     }
 };
 
@@ -60,7 +78,11 @@ async function handleApiRequest(request, env) {
             throw new Error('MONGODB_URI environment variable is missing.');
         }
         database = await getDatabase(connectionString);
-        await seedDefaultAdmin(database);
+        try {
+            await seedDefaultAdmin(database);
+        } catch (seedError) {
+            console.error('Seeding default admin failed:', seedError);
+        }
     } catch (dbError) {
         return jsonResponse({
             error: true,
