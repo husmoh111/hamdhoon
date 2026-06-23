@@ -5,4 +5,4 @@ name = "hamdhoon"
 [[d1_databases]]
 binding = "DB"                                      # Must remain "DB"
 database_name = "hamdhoon-db"                       # Replace with your actual D1 database name
-database_id = "YOUR_D1_DATABASE_UUID_HERE"          # Replace with your actual D1 database ID (UUID)
+database_id = "0e3c2a69-b4f6-4bdf-a4eb-eabaf515b71d"          # Replace with your actual D1 database ID (UUID)
