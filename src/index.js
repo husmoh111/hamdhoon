@@ -1,6 +1,16 @@
 // Cloudflare Worker Entry Point - MongoDB Atlas - V1.0.0
 import { MongoClient } from 'mongodb';
 
+// Prevent background unhandled rejections from crashing the Worker isolate
+if (typeof globalThis !== 'undefined' && typeof globalThis.addEventListener === 'function') {
+    globalThis.addEventListener('unhandledrejection', (event) => {
+        console.error('Global Unhandled Rejection caught:', event.reason);
+        try {
+            event.preventDefault();
+        } catch (e) {}
+    });
+}
+
 let mongoClient = null;
 let db = null;
 
@@ -9,11 +19,12 @@ async function getDatabase(connectionString) {
     
     // Connect to MongoDB Atlas with serverless-optimized options
     mongoClient = new MongoClient(connectionString, {
-        maxPoolSize: 5,
+        maxPoolSize: 1, // Single connection per isolate to minimize socket leakage
         minPoolSize: 0,
         maxIdleTimeMS: 10000,
         serverSelectionTimeoutMS: 5000,
-        socketTimeoutMS: 45000
+        socketTimeoutMS: 30000,
+        heartbeatFrequencyMS: 300000 // 5 minutes heartbeat interval to prevent background wakeups
     });
     await mongoClient.connect();
     db = mongoClient.db('hamdhoon'); // Database name
@@ -53,6 +64,7 @@ export default {
 };
 
 async function handleApiRequest(request, env) {
+    try {
     const url = new URL(request.url);
     const action = url.searchParams.get('action') || '';
     
@@ -90,6 +102,9 @@ async function handleApiRequest(request, env) {
             console.error('Seeding default admin failed:', seedError);
         }
     } catch (dbError) {
+        console.error('Database connection error, clearing cache:', dbError);
+        db = null;
+        mongoClient = null;
         return jsonResponse({
             error: true,
             message: 'Failed to connect to MongoDB Database: ' + dbError.message
@@ -347,6 +362,12 @@ async function handleApiRequest(request, env) {
 
         default:
             return jsonResponse({ success: false, message: 'Invalid action: ' + action }, 400);
+    }
+    } catch (apiError) {
+        console.error('API execution failed, clearing database cache:', apiError);
+        db = null;
+        mongoClient = null;
+        throw apiError;
     }
 }
 
