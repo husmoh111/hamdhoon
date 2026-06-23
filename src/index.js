@@ -7,8 +7,14 @@ let db = null;
 async function getDatabase(connectionString) {
     if (db) return db;
     
-    // Connect to MongoDB Atlas
-    mongoClient = new MongoClient(connectionString);
+    // Connect to MongoDB Atlas with serverless-optimized options
+    mongoClient = new MongoClient(connectionString, {
+        maxPoolSize: 5,
+        minPoolSize: 0,
+        maxIdleTimeMS: 10000,
+        serverSelectionTimeoutMS: 5000,
+        socketTimeoutMS: 45000
+    });
     await mongoClient.connect();
     db = mongoClient.db('hamdhoon'); // Database name
     return db;
