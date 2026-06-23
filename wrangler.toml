@@ -9,3 +9,6 @@ pages_build_output_dir = "public"
 # Environment Variables
 [vars]
 MONGODB_URI = "mongodb+srv://husmoh111_db_user:QtsWUHQJ9ckDV3Ty@cluster0.newhul1.mongodb.net/hamdhoon?retryWrites=true&w=majority&appName=Cluster0"
+
+# Trigger rebuild
+
