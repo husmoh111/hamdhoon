@@ -241,7 +241,7 @@ async function syncOfflineData() {
                 bodyData = { users: op.data };
             }
             
-            const response = await fetch(`api.php?action=${action}`, {
+            const response = await fetch(`/api?action=${action}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(bodyData)
@@ -279,7 +279,7 @@ async function initDatabaseState() {
     });
     
     try {
-        const response = await fetch('api.php?action=init_app');
+        const response = await fetch('/api?action=init_app');
         const data = await parseJSONResponse(response);
         
         if (data.success) {
@@ -1907,7 +1907,7 @@ async function handleLoginSubmit(e) {
     const inputHash = await hashPassword(password);
     
     try {
-        const response = await fetch('api.php?action=login', {
+        const response = await fetch('/api?action=login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, passwordHash: inputHash })

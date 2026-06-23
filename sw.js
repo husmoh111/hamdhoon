@@ -1,4 +1,4 @@
-const CACHE_NAME = 'daily-log-cache-v4';
+const CACHE_NAME = 'daily-log-cache-v5';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -42,7 +42,7 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   // Do not intercept or cache backend database API calls
-  if (event.request.url.includes('api.php')) {
+  if (event.request.url.includes('/api')) {
     return;
   }
 
