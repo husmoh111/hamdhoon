@@ -2,13 +2,13 @@
 name = "hamdhoon"
 compatibility_date = "2026-06-23"
 compatibility_flags = ["nodejs_compat"]
+main = "src/index.js"
 
-# Specify the static assets directory for Cloudflare Pages
-pages_build_output_dir = "public"
+# Specify the static assets directory for Workers Assets
+[assets]
+directory = "./public"
+binding = "ASSETS"
 
 # Environment Variables
 [vars]
 MONGODB_URI = "mongodb+srv://husmoh111_db_user:QtsWUHQJ9ckDV3Ty@cluster0.newhul1.mongodb.net/hamdhoon?retryWrites=true&w=majority&appName=Cluster0"
-
-# Trigger rebuild
-

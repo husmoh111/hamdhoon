@@ -1,4 +1,4 @@
-// Cloudflare Pages Function API - MongoDB Atlas - V1.1.0
+// Cloudflare Worker Entry Point - MongoDB Atlas - V1.0.0
 import { MongoClient } from 'mongodb';
 
 let mongoClient = null;
@@ -14,8 +14,21 @@ async function getDatabase(connectionString) {
     return db;
 }
 
-export async function onRequest(context) {
-    const { request, env } = context;
+export default {
+    async fetch(request, env, ctx) {
+        const url = new URL(request.url);
+        
+        // If it's an API request, handle it with our serverless DB API logic
+        if (url.pathname.startsWith('/api')) {
+            return handleApiRequest(request, env);
+        }
+        
+        // Otherwise, serve static assets
+        return env.ASSETS.fetch(request);
+    }
+};
+
+async function handleApiRequest(request, env) {
     const url = new URL(request.url);
     const action = url.searchParams.get('action') || '';
     
