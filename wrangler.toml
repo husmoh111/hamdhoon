@@ -1,0 +1,8 @@
+# Cloudflare Wrangler Configuration
+name = "hamdhoon"
+
+# Bind your D1 database so that it is automatically injected into /functions/api.js
+[[d1_databases]]
+binding = "DB"                                      # Must remain "DB"
+database_name = "hamdhoon-db"                       # Replace with your actual D1 database name
+database_id = "YOUR_D1_DATABASE_UUID_HERE"          # Replace with your actual D1 database ID (UUID)
