@@ -84,7 +84,7 @@ async function handleApiRequest(request, env) {
             const passwordHash = (body.passwordHash || '').trim();
             
             const user = await database.collection('users').findOne({
-                username: { $regex: new RegExp(`^${username}$`, 'i') }
+                username: { $regex: `^${username}$`, $options: 'i' }
             });
                 
             if (user && user.passwordHash === passwordHash) {
