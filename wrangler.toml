@@ -11,4 +11,4 @@ binding = "ASSETS"
 
 # Environment Variables
 [vars]
-MONGODB_URI = "mongodb+srv://husmoh111_db_user:QtsWUHQJ9ckDV3Ty@cluster0.newhul1.mongodb.net/hamdhoon?retryWrites=true&w=majority&appName=Cluster0"
+MONGODB_URI = "mongodb+srv://husmoh111_db_user:ey4E4XBFPQrJZivm@cluster0.newhul1.mongodb.net/hamdhoon?retryWrites=true&w=majority&appName=Cluster0"
