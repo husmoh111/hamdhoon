@@ -1,5 +1,10 @@
 # Cloudflare Wrangler Configuration
 name = "hamdhoon"
+compatibility_date = "2026-06-23"
+
+# Specify the static assets directory (root of the project)
+[assets]
+directory = "."
 
 # Bind your D1 database so that it is automatically injected into /functions/api.js
 [[d1_databases]]
