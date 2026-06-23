@@ -1,0 +1,9 @@
+{
+  "name": "hamdhoon-hdc",
+  "version": "1.0.0",
+  "description": "Daily Log System",
+  "main": "public/index.html",
+  "dependencies": {
+    "mongodb": "^6.5.0"
+  }
+}

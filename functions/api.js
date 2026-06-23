@@ -1,4 +1,19 @@
-// Cloudflare Pages Function API - V1.0.2
+// Cloudflare Pages Function API - MongoDB Atlas - V1.1.0
+import { MongoClient } from 'mongodb';
+
+let mongoClient = null;
+let db = null;
+
+async function getDatabase(connectionString) {
+    if (db) return db;
+    
+    // Connect to MongoDB Atlas
+    mongoClient = new MongoClient(connectionString);
+    await mongoClient.connect();
+    db = mongoClient.db('hamdhoon'); // Database name
+    return db;
+}
+
 export async function onRequest(context) {
     const { request, env } = context;
     const url = new URL(request.url);
@@ -24,13 +39,19 @@ export async function onRequest(context) {
         });
     };
 
-    // Auto initialize schema
+    // Auto initialize schema & connect to MongoDB
+    let database = null;
     try {
-        await initDatabaseSchema(env.DB);
+        const connectionString = env.MONGODB_URI;
+        if (!connectionString) {
+            throw new Error('MONGODB_URI environment variable is missing.');
+        }
+        database = await getDatabase(connectionString);
+        await seedDefaultAdmin(database);
     } catch (dbError) {
         return jsonResponse({
             error: true,
-            message: 'Failed to initialize D1 database schema: ' + dbError.message
+            message: 'Failed to connect to MongoDB Database: ' + dbError.message
         }, 500);
     }
 
@@ -49,11 +70,11 @@ export async function onRequest(context) {
             const username = (body.username || '').trim().toLowerCase();
             const passwordHash = (body.passwordHash || '').trim();
             
-            const user = await env.DB.prepare("SELECT id, name, username, role, password_hash FROM users WHERE LOWER(username) = LOWER(?)")
-                .bind(username)
-                .first();
+            const user = await database.collection('users').findOne({
+                username: { $regex: new RegExp(`^${username}$`, 'i') }
+            });
                 
-            if (user && user.password_hash === passwordHash) {
+            if (user && user.passwordHash === passwordHash) {
                 return jsonResponse({
                     success: true,
                     user: {
@@ -73,35 +94,38 @@ export async function onRequest(context) {
 
         case 'init_app': {
             // Fetch daily logs
-            const { results: logs } = await env.DB.prepare("SELECT * FROM daily_logs").all();
+            const logs = await database.collection('daily_logs').find({}).toArray();
             for (let log of logs) {
-                try {
-                    log.assignedStaff = JSON.parse(log.assignedStaff);
-                } catch(e) {
-                    log.assignedStaff = typeof log.assignedStaff === 'string' ? log.assignedStaff.split(', ').filter(Boolean) : [];
+                // Ensure array format for staff and supervisor
+                if (!Array.isArray(log.assignedStaff)) {
+                    log.assignedStaff = typeof log.assignedStaff === 'string' ? JSON.parse(log.assignedStaff) : [];
                 }
-                try {
-                    log.assignedSupervisor = JSON.parse(log.assignedSupervisor);
-                } catch(e) {
-                    log.assignedSupervisor = typeof log.assignedSupervisor === 'string' ? log.assignedSupervisor.split(', ').filter(Boolean) : [];
+                if (!Array.isArray(log.assignedSupervisor)) {
+                    log.assignedSupervisor = typeof log.assignedSupervisor === 'string' ? JSON.parse(log.assignedSupervisor) : [];
                 }
             }
 
             // Fetch directories
-            const { results: staffRows } = await env.DB.prepare("SELECT name FROM staff ORDER BY name ASC").all();
+            const staffRows = await database.collection('staff').find({}).sort({ name: 1 }).toArray();
             const staff = staffRows.map(r => r.name);
 
-            const { results: supervisorRows } = await env.DB.prepare("SELECT name FROM supervisors ORDER BY name ASC").all();
+            const supervisorRows = await database.collection('supervisors').find({}).sort({ name: 1 }).toArray();
             const supervisors = supervisorRows.map(r => r.name);
 
-            const { results: statusRows } = await env.DB.prepare("SELECT name FROM statuses ORDER BY name ASC").all();
+            const statusRows = await database.collection('statuses').find({}).sort({ name: 1 }).toArray();
             const statuses = statusRows.map(r => r.name);
 
-            const { results: propertyRows } = await env.DB.prepare("SELECT name FROM properties ORDER BY name ASC").all();
+            const propertyRows = await database.collection('properties').find({}).sort({ name: 1 }).toArray();
             const properties = propertyRows.map(r => r.name);
 
             // Fetch users (exclude hash)
-            const { results: users } = await env.DB.prepare("SELECT id, name, username, role FROM users").all();
+            const userRows = await database.collection('users').find({}).toArray();
+            const users = userRows.map(u => ({
+                id: u.id,
+                name: u.name,
+                username: u.username,
+                role: u.role
+            }));
 
             return jsonResponse({
                 success: true,
@@ -120,40 +144,28 @@ export async function onRequest(context) {
                 return jsonResponse({ success: false, message: 'No log data provided' }, 400);
             }
 
-            const assignedStaff = JSON.stringify(log.assignedStaff || []);
-            const assignedSupervisor = JSON.stringify(log.assignedSupervisor || []);
-
-            await env.DB.prepare(`
-                INSERT INTO daily_logs (id, date, day, propertyName, dutyType, startTime, breakTime, endTime, workDetail, status, assignedStaff, assignedSupervisor, createdBy)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    date = excluded.date,
-                    day = excluded.day,
-                    propertyName = excluded.propertyName,
-                    dutyType = excluded.dutyType,
-                    startTime = excluded.startTime,
-                    breakTime = excluded.breakTime,
-                    endTime = excluded.endTime,
-                    workDetail = excluded.workDetail,
-                    status = excluded.status,
-                    assignedStaff = excluded.assignedStaff,
-                    assignedSupervisor = excluded.assignedSupervisor,
-                    createdBy = excluded.createdBy
-            `).bind(
-                log.id,
-                log.date,
-                log.day,
-                log.propertyName,
-                log.dutyType,
-                log.startTime,
-                log.breakTime || '-',
-                log.endTime,
-                log.workDetail,
-                log.status,
-                assignedStaff,
-                assignedSupervisor,
-                log.createdBy
-            ).run();
+            await database.collection('daily_logs').updateOne(
+                { id: log.id },
+                {
+                    $set: {
+                        id: log.id,
+                        date: log.date,
+                        day: log.day,
+                        propertyName: log.propertyName,
+                        dutyType: log.dutyType,
+                        startTime: log.startTime,
+                        breakTime: log.breakTime || '-',
+                        endTime: log.endTime,
+                        workDetail: log.workDetail,
+                        status: log.status,
+                        assignedStaff: log.assignedStaff || [],
+                        assignedSupervisor: log.assignedSupervisor || [],
+                        createdBy: log.createdBy,
+                        updatedAt: new Date()
+                    }
+                },
+                { upsert: true }
+            );
 
             return jsonResponse({ success: true });
         }
@@ -164,12 +176,12 @@ export async function onRequest(context) {
                 return jsonResponse({ success: false, message: 'No ID provided' }, 400);
             }
 
-            await env.DB.prepare("DELETE FROM daily_logs WHERE id = ?").bind(id).run();
+            await database.collection('daily_logs').deleteOne({ id });
             return jsonResponse({ success: true });
         }
 
         case 'clear_all_logs': {
-            await env.DB.prepare("DELETE FROM daily_logs").run();
+            await database.collection('daily_logs').deleteMany({});
             return jsonResponse({ success: true });
         }
 
@@ -179,95 +191,80 @@ export async function onRequest(context) {
                 return jsonResponse({ success: true, message: 'No logs to sync' });
             }
 
-            const statements = [];
-            for (let log of logs) {
-                const assignedStaff = JSON.stringify(log.assignedStaff || []);
-                const assignedSupervisor = JSON.stringify(log.assignedSupervisor || []);
-                
-                statements.push(
-                    env.DB.prepare(`
-                        INSERT INTO daily_logs (id, date, day, propertyName, dutyType, startTime, breakTime, endTime, workDetail, status, assignedStaff, assignedSupervisor, createdBy)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ON CONFLICT(id) DO UPDATE SET
-                            date = excluded.date,
-                            day = excluded.day,
-                            propertyName = excluded.propertyName,
-                            dutyType = excluded.dutyType,
-                            startTime = excluded.startTime,
-                            breakTime = excluded.breakTime,
-                            endTime = excluded.endTime,
-                            workDetail = excluded.workDetail,
-                            status = excluded.status,
-                            assignedStaff = excluded.assignedStaff,
-                            assignedSupervisor = excluded.assignedSupervisor,
-                            createdBy = excluded.createdBy
-                    `).bind(
-                        log.id,
-                        log.date,
-                        log.day,
-                        log.propertyName,
-                        log.dutyType,
-                        log.startTime,
-                        log.breakTime || '-',
-                        log.endTime,
-                        log.workDetail,
-                        log.status,
-                        assignedStaff,
-                        assignedSupervisor,
-                        log.createdBy
-                    )
-                );
-            }
+            const bulkOps = logs.map(log => ({
+                updateOne: {
+                    filter: { id: log.id },
+                    update: {
+                        $set: {
+                            id: log.id,
+                            date: log.date,
+                            day: log.day,
+                            propertyName: log.propertyName,
+                            dutyType: log.dutyType,
+                            startTime: log.startTime,
+                            breakTime: log.breakTime || '-',
+                            endTime: log.endTime,
+                            workDetail: log.workDetail,
+                            status: log.status,
+                            assignedStaff: log.assignedStaff || [],
+                            assignedSupervisor: log.assignedSupervisor || [],
+                            createdBy: log.createdBy,
+                            updatedAt: new Date()
+                        }
+                    },
+                    upsert: true
+                }
+            }));
 
-            await env.DB.batch(statements);
+            await database.collection('daily_logs').bulkWrite(bulkOps);
             return jsonResponse({ success: true });
         }
 
         case 'save_staff_dir': {
             const staff = body.staff || [];
-            const statements = [env.DB.prepare("DELETE FROM staff")];
-            for (let name of staff) {
-                if (name.trim()) {
-                    statements.push(env.DB.prepare("INSERT INTO staff (name) VALUES (?)").bind(name.trim()));
+            await database.collection('staff').deleteMany({});
+            if (staff.length > 0) {
+                const docs = staff.filter(name => name.trim()).map(name => ({ name: name.trim() }));
+                if (docs.length > 0) {
+                    await database.collection('staff').insertMany(docs);
                 }
             }
-            await env.DB.batch(statements);
             return jsonResponse({ success: true });
         }
 
         case 'save_supervisor_dir': {
             const supervisors = body.supervisors || [];
-            const statements = [env.DB.prepare("DELETE FROM supervisors")];
-            for (let name of supervisors) {
-                if (name.trim()) {
-                    statements.push(env.DB.prepare("INSERT INTO supervisors (name) VALUES (?)").bind(name.trim()));
+            await database.collection('supervisors').deleteMany({});
+            if (supervisors.length > 0) {
+                const docs = supervisors.filter(name => name.trim()).map(name => ({ name: name.trim() }));
+                if (docs.length > 0) {
+                    await database.collection('supervisors').insertMany(docs);
                 }
             }
-            await env.DB.batch(statements);
             return jsonResponse({ success: true });
         }
 
         case 'save_status_dir': {
             const statuses = body.statuses || [];
-            const statements = [env.DB.prepare("DELETE FROM statuses")];
-            for (let name of statuses) {
-                if (name.trim()) {
-                    statements.push(env.DB.prepare("INSERT INTO statuses (name) VALUES (?)").bind(name.trim()));
+            await database.collection('statuses').deleteMany({});
+            if (statuses.length > 0) {
+                const docs = statuses.filter(name => name.trim()).map(name => ({ name: name.trim() }));
+                if (docs.length > 0) {
+                    await database.collection('statuses').insertMany(docs);
                 }
             }
-            await env.DB.batch(statements);
             return jsonResponse({ success: true });
         }
 
         case 'save_property_dir': {
             const properties = body.properties || [];
-            const statements = [env.DB.prepare("DELETE FROM properties")];
-            for (let name of properties) {
-                if (name.trim()) {
-                    statements.push(env.DB.prepare("INSERT INTO properties (name) VALUES (?)").bind(name.trim()));
+            await database.collection('properties').deleteMany({});
+            if (properties.length > 0) {
+                const docs = properties.filter(name => name.trim()).map(name => ({ name: name.trim() }));
+                if (docs.length > 0) {
+                    await database.collection('properties').insertMany(docs);
                 }
             }
-            await env.DB.batch(statements);
             return jsonResponse({ success: true });
         }
 
@@ -281,28 +278,29 @@ export async function onRequest(context) {
             const incomingIds = users.map(u => u.id);
             
             // Delete users from DB not in the incoming list
-            const placeholders = incomingIds.map(() => '?').join(',');
-            await env.DB.prepare(`DELETE FROM users WHERE id NOT IN (${placeholders})`).bind(...incomingIds).run();
+            await database.collection('users').deleteMany({ id: { $nin: incomingIds } });
 
-            const statements = [];
             for (let u of users) {
-                const existing = await env.DB.prepare("SELECT password_hash FROM users WHERE id = ?").bind(u.id).first();
+                const existing = await database.collection('users').findOne({ id: u.id });
                 
                 if (existing) {
-                    statements.push(
-                        env.DB.prepare("UPDATE users SET name = ?, username = ?, role = ? WHERE id = ?")
-                            .bind(u.name, u.username, u.role, u.id)
+                    await database.collection('users').updateOne(
+                        { id: u.id },
+                        { $set: { name: u.name, username: u.username, role: u.role } }
                     );
                 } else {
                     const passHash = u.passwordHash || '4813494d137e1631bba301d5acab6e7bb7aa74ce1185d456565ef51d737677b2'; // fallback default
-                    statements.push(
-                        env.DB.prepare("INSERT INTO users (id, name, username, password_hash, role) VALUES (?, ?, ?, ?, ?)")
-                            .bind(u.id, u.name, u.username, passHash, u.role)
-                    );
+                    await database.collection('users').insertOne({
+                        id: u.id,
+                        name: u.name,
+                        username: u.username,
+                        passwordHash: passHash,
+                        role: u.role,
+                        createdAt: new Date()
+                    });
                 }
             }
 
-            await env.DB.batch(statements);
             return jsonResponse({ success: true });
         }
 
@@ -311,79 +309,17 @@ export async function onRequest(context) {
     }
 }
 
-async function initDatabaseSchema(db) {
-    if (!db) {
-        throw new Error('D1 database binding "DB" is missing. Please bind your D1 database to the Pages project.');
-    }
-    
-    // Create tables in batch
-    await db.batch([
-        db.prepare(`
-            CREATE TABLE IF NOT EXISTS users (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                role TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `),
-        db.prepare(`
-            CREATE TABLE IF NOT EXISTS staff (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL
-            )
-        `),
-        db.prepare(`
-            CREATE TABLE IF NOT EXISTS supervisors (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL
-            )
-        `),
-        db.prepare(`
-            CREATE TABLE IF NOT EXISTS statuses (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL
-            )
-        `),
-        db.prepare(`
-            CREATE TABLE IF NOT EXISTS properties (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL
-            )
-        `),
-        db.prepare(`
-            CREATE TABLE IF NOT EXISTS daily_logs (
-                id TEXT PRIMARY KEY,
-                date TEXT NOT NULL,
-                day TEXT NOT NULL,
-                propertyName TEXT NOT NULL,
-                dutyType TEXT NOT NULL,
-                startTime TEXT NOT NULL,
-                breakTime TEXT DEFAULT '-',
-                endTime TEXT NOT NULL,
-                workDetail TEXT NOT NULL,
-                status TEXT NOT NULL,
-                assignedStaff TEXT NOT NULL,
-                assignedSupervisor TEXT NOT NULL,
-                createdBy TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `)
-    ]);
-
-    // Pre-seed admin user if empty
-    const result = await db.prepare("SELECT COUNT(*) as count FROM users").first();
-    if (result && result.count === 0) {
-        await db.prepare("INSERT INTO users (id, name, username, password_hash, role) VALUES (?, ?, ?, ?, ?)")
-            .bind(
-                'u_' + Date.now(),
-                'System Admin',
-                'admin',
-                '4813494d137e1631bba301d5acab6e7bb7aa74ce1185d456565ef51d737677b2', // admin123
-                'Admin'
-            )
-            .run();
+async function seedDefaultAdmin(database) {
+    const usersCollection = database.collection('users');
+    const count = await usersCollection.countDocuments();
+    if (count === 0) {
+        await usersCollection.insertOne({
+            id: 'u_' + Date.now(),
+            name: 'System Admin',
+            username: 'admin',
+            passwordHash: '4813494d137e1631bba301d5acab6e7bb7aa74ce1185d456565ef51d737677b2', // admin123
+            role: 'Admin',
+            createdAt: new Date()
+        });
     }
 }

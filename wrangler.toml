@@ -1,12 +1,11 @@
 # Cloudflare Wrangler Configuration
 name = "hamdhoon"
 compatibility_date = "2026-06-23"
+compatibility_flags = ["nodejs_compat"]
 
 # Specify the static assets directory for Cloudflare Pages
 pages_build_output_dir = "public"
 
-# Bind your D1 database so that it is automatically injected into /functions/api.js
-[[d1_databases]]
-binding = "DB"                                      # Must remain "DB"
-database_name = "hamdhoon-db"                       # Replace with your actual D1 database name
-database_id = "0e3c2a69-b4f6-4bdf-a4eb-eabaf515b71d"          # Replace with your actual D1 database ID (UUID)
+# Environment Variables
+[vars]
+MONGODB_URI = "mongodb+srv://husmoh111_db_user:QtsWUHQJ9ckDV3Ty@cluster0.newhul1.mongodb.net/hamdhoon?retryWrites=true&w=majority&appName=Cluster0"
