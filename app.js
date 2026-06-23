@@ -129,6 +129,15 @@ let isSyncing = false;
 const dbSyncStatus = document.getElementById('db-sync-status');
 const dbSyncText = document.getElementById('db-sync-text');
 
+// Helper to safely parse JSON responses and show descriptive errors
+async function parseJSONResponse(response) {
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Server returned a non-JSON response (HTML or plain text). Please verify that PHP is installed and configured on your web server.');
+    }
+    return await response.json();
+}
+
 function loadSyncQueue() {
     const stored = localStorage.getItem('syncQueue');
     if (stored) {
@@ -237,7 +246,7 @@ async function syncOfflineData() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(bodyData)
             });
-            const resData = await response.json();
+            const resData = await parseJSONResponse(response);
             success = resData.success;
             
             if (success) {
@@ -271,7 +280,7 @@ async function initDatabaseState() {
     
     try {
         const response = await fetch('api.php?action=init_app');
-        const data = await response.json();
+        const data = await parseJSONResponse(response);
         
         if (data.success) {
             logEntries = data.logs || [];
@@ -1903,7 +1912,7 @@ async function handleLoginSubmit(e) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, passwordHash: inputHash })
         });
-        const data = await response.json();
+        const data = await parseJSONResponse(response);
         
         if (data.success) {
             const sessionData = data.user;
