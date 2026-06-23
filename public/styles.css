@@ -1245,5 +1245,70 @@ tr.new-row {
     }
 }
 
+/* Mobile Optimization for Admin Settings Modal */
+@media (max-width: 576px) {
+    .modal-overlay {
+        padding: 0 !important;
+        align-items: flex-start !important;
+    }
+
+    .modal-card {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 100% !important;
+        max-height: 100vh !important;
+        border-radius: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    .modal-header {
+        padding: 1rem !important;
+    }
+
+    .modal-header h2 {
+        font-size: 1.1rem !important;
+    }
+
+    .modal-body {
+        padding: 1rem !important;
+    }
+
+    /* Stack inline forms vertically so they don't overflow */
+    .admin-inline-form {
+        flex-direction: column !important;
+        gap: 0.5rem !important;
+    }
+
+    .admin-inline-form input {
+        width: 100% !important;
+    }
+
+    .admin-inline-form button {
+        width: 100% !important;
+    }
+
+    /* Make modal buttons full width and comfortable to tap */
+    .modal-card .btn {
+        width: 100% !important;
+        display: inline-flex !important;
+        justify-content: center !important;
+        padding: 0.75rem 1rem !important;
+    }
+
+    /* Stack bulk import items cleanly */
+    .bulk-import-container {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem !important;
+    }
+
+    /* Add space between sections inside modal content */
+    .admin-section {
+        margin-bottom: 1.25rem !important;
+        padding-bottom: 1.25rem !important;
+    }
+}
+
 
 
