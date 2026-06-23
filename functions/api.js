@@ -1,3 +1,4 @@
+// Cloudflare Pages Function API - V1.0.1
 export async function onRequest(context) {
     const { request, env } = context;
     const url = new URL(request.url);
